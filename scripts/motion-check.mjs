@@ -70,6 +70,53 @@ for (const vp of VIEWPORTS) {
   await ctx.close();
 }
 
+// ── Cross-page transitions ───────────────────────────────────────
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+
+  // Exactly one element may claim each product's morph name.
+  const dupes = await page.evaluate(() => {
+    const names = [...document.querySelectorAll("[style*='view-transition-name']")]
+      .map((el) => el.style.viewTransitionName)
+      .filter(Boolean);
+    const seen = new Set();
+    const dup = new Set();
+    for (const n of names) {
+      if (seen.has(n)) dup.add(n);
+      seen.add(n);
+    }
+    return [...dup];
+  });
+  if (dupes.length) fail(`duplicate view-transition-name on /shop: ${dupes.join(", ")}`);
+  else pass("no duplicate view-transition-name on /shop");
+
+  // Header must be anchored so it cannot slide during navigation.
+  const anchored = await page.evaluate(() => {
+    const h = document.querySelector("header");
+    return h ? getComputedStyle(h).viewTransitionName : null;
+  });
+  if (anchored !== "site-header") fail(`header viewTransitionName is ${anchored}, expected site-header`);
+  else pass("header anchored as site-header");
+
+  // Navigating card -> PDP must land on a product page without error.
+  await page.locator("a[href^='/product/']").first().click();
+  await page.waitForURL(/\/product\//, { timeout: 5000 });
+  await page.waitForTimeout(1000);
+  const pdpMorph = await page.evaluate(() =>
+    [...document.querySelectorAll("[style*='view-transition-name']")].some((el) =>
+      el.style.viewTransitionName.startsWith("product-")
+    )
+  );
+  if (!pdpMorph) fail("PDP has no product-* view-transition-name to morph into");
+  else pass("PDP claims a product-* morph name");
+
+  await page.screenshot({ path: join(OUT, "desktop_pdp.png"), fullPage: true });
+  await ctx.close();
+}
+
 await browser.close();
 
 if (failures.length) {

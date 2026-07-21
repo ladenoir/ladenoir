@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ViewTransition } from "react";
 import Link from "next/link";
 import { useCart } from "@/components/store/cart-context";
 import { useWishlist } from "@/components/store/wishlist-context";
@@ -46,7 +46,7 @@ export function ProductDetail({ product }: { product: Product }) {
     <>
       {/* breadcrumb */}
       <div className="px-[5vw] pt-5 font-mono text-[11px] tracking-[0.15em] text-cream/45">
-        <Link href="/shop" className="hover:text-gold">
+        <Link href="/shop" transitionTypes={["nav-back"]} className="hover:text-gold">
           SHOP
         </Link>{" "}
         / {cat.toUpperCase()} /{" "}
@@ -76,12 +76,14 @@ export function ProductDetail({ product }: { product: Product }) {
             ))}
           </div>
           <div className="relative aspect-[4/5] overflow-hidden border border-gold/15 bg-noir-panel">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={gallery[imgIdx]}
-              alt={product.name}
-              className="absolute inset-0 size-full object-cover contrast-[1.04] grayscale-[0.15]"
-            />
+            <ViewTransition name={`product-${product.slug}`} share="morph">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={gallery[imgIdx]}
+                alt={product.name}
+                className="absolute inset-0 size-full object-cover contrast-[1.04] grayscale-[0.15]"
+              />
+            </ViewTransition>
             {product.tag && (
               <div className="absolute left-4 top-4 bg-gold px-2.5 py-[5px] font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-noir-deep">
                 {product.tag}
@@ -95,17 +97,21 @@ export function ProductDetail({ product }: { product: Product }) {
           <div className="mb-3.5 font-mono text-[11px] tracking-[0.2em] text-cream/50">
             {cat.toUpperCase()} · AW26
           </div>
-          <h1 className="font-serif text-[38px] font-medium leading-[0.95] tracking-[-0.01em] sm:text-[58px]">
-            {product.name}
-          </h1>
-          <div className="mb-2 mt-[18px] flex items-center gap-4">
-            <div className="font-mono text-[22px] font-medium text-gold">
-              {formatINR(product.price_inr)}
+          <ViewTransition name={`ptitle-${product.slug}`} share="morph">
+            <div>
+              <h1 className="font-serif text-[38px] font-medium leading-[0.95] tracking-[-0.01em] sm:text-[58px]">
+                {product.name}
+              </h1>
+              <div className="mb-2 mt-[18px] flex items-center gap-4">
+                <div className="font-mono text-[22px] font-medium text-gold">
+                  {formatINR(product.price_inr)}
+                </div>
+                <div className="font-mono text-[11px] tracking-[0.05em] text-cream/45">
+                  ★★★★★ ({product.sold_count})
+                </div>
+              </div>
             </div>
-            <div className="font-mono text-[11px] tracking-[0.05em] text-cream/45">
-              ★★★★★ ({product.sold_count})
-            </div>
-          </div>
+          </ViewTransition>
           <p className="my-3.5 mb-7 max-w-[440px] text-sm leading-relaxed text-cream/65">
             {product.description}
           </p>

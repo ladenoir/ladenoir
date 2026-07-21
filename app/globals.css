@@ -235,3 +235,99 @@ input::placeholder {
     animation: none !important;
   }
 }
+
+/* ── View transitions ─────────────────────────────────────────────
+   Shared-element morph: blur mid-flight hides interpolation artifacts. */
+::view-transition-group(.morph) {
+  animation-duration: var(--duration-morph);
+}
+::view-transition-image-pair(.morph) {
+  animation-name: ldn-via-blur;
+}
+@keyframes ldn-via-blur {
+  30% {
+    filter: blur(3px);
+  }
+}
+
+/* Directional route slides. Old leaves fast, new arrives after it. */
+::view-transition-old(.nav-forward) {
+  --slide-offset: -60px;
+  animation:
+    var(--duration-exit) ease-in both ldn-vt-fade reverse,
+    var(--duration-morph) ease-in-out both ldn-vt-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --slide-offset: 60px;
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both ldn-vt-fade,
+    var(--duration-morph) ease-in-out both ldn-vt-slide;
+}
+::view-transition-old(.nav-back) {
+  --slide-offset: 60px;
+  animation:
+    var(--duration-exit) ease-in both ldn-vt-fade reverse,
+    var(--duration-morph) ease-in-out both ldn-vt-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --slide-offset: -60px;
+  animation:
+    var(--duration-enter) ease-out var(--duration-exit) both ldn-vt-fade,
+    var(--duration-morph) ease-in-out both ldn-vt-slide;
+}
+@keyframes ldn-vt-fade {
+  from {
+    filter: blur(3px);
+    opacity: 0;
+  }
+  to {
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+@keyframes ldn-vt-slide {
+  from {
+    translate: var(--slide-offset);
+  }
+  to {
+    translate: 0;
+  }
+}
+
+/* Suspense reveal: skeleton yields to content. */
+::view-transition-old(.slide-down) {
+  animation:
+    var(--duration-exit) ease-out both ldn-vt-fade reverse,
+    var(--duration-exit) ease-out both ldn-vt-slide-y reverse;
+}
+::view-transition-new(.slide-up) {
+  animation:
+    var(--duration-enter) ease-in var(--duration-exit) both ldn-vt-fade,
+    var(--duration-morph) ease-in both ldn-vt-slide-y;
+}
+@keyframes ldn-vt-slide-y {
+  from {
+    transform: translateY(10px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Chrome must not move while content slides. */
+::view-transition-group(site-marquee),
+::view-transition-group(site-header),
+::view-transition-group(site-footer) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-marquee),
+::view-transition-old(site-header),
+::view-transition-old(site-footer) {
+  display: none;
+}
+::view-transition-new(site-marquee),
+::view-transition-new(site-header),
+::view-transition-new(site-footer) {
+  animation: none;
+}

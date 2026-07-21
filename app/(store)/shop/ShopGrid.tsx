@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { ProductCard } from "@/components/store/ProductCard";
 import type { Product } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ export function ShopGrid({
   initial?: string;
 }) {
   const [active, setActive] = useState(initial);
+  const [, startTransition] = useTransition();
   const filters = ["All", ...categories];
   const shown =
     active === "All"
@@ -31,7 +32,7 @@ export function ShopGrid({
             return (
               <button
                 key={f}
-                onClick={() => setActive(f)}
+                onClick={() => startTransition(() => setActive(f))}
                 className={cn(
                   "border px-[18px] py-2.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em] transition-all duration-300",
                   on
@@ -53,9 +54,12 @@ export function ShopGrid({
 
       {/* grid */}
       <div className="px-[5vw] pb-20 pt-10">
-        <div className="grid grid-cols-2 gap-[22px] lg:grid-cols-4">
+        <div
+          className="grid grid-cols-2 gap-[22px] lg:grid-cols-4"
+          style={{ viewTransitionName: "shop-grid" }}
+        >
           {shown.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            <ProductCard key={p.id} product={p} morph />
           ))}
         </div>
       </div>

@@ -59,6 +59,7 @@ export default async function HomePage() {
           </h1>
           <Link
             href="/shop"
+            transitionTypes={["nav-forward"]}
             className="mt-8 bg-gold px-8 py-4 font-mono text-xs font-bold uppercase tracking-[0.14em] text-burgundy-deep transition-colors hover:bg-cream"
           >
             Shop the collection →
@@ -72,6 +73,7 @@ export default async function HomePage() {
           <Link
             key={c.id}
             href={`/shop?c=${encodeURIComponent(c.name)}`}
+            transitionTypes={["nav-forward"]}
             className="group relative aspect-[1/1.15] overflow-hidden border-b border-r border-gold/20 bg-burgundy"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -103,6 +105,7 @@ export default async function HomePage() {
           </h2>
           <Link
             href="/shop"
+            transitionTypes={["nav-forward"]}
             className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-gold"
           >
             View all →
@@ -110,7 +113,7 @@ export default async function HomePage() {
         </div>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
           {featured.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            <ProductCard key={p.id} product={p} morph />
           ))}
         </div>
       </section>

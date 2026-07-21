@@ -31,7 +31,10 @@ export function SiteHeader() {
     );
 
   return (
-    <header className="sticky top-0 z-30 border-b border-gold/20 bg-noir/90 backdrop-blur-md">
+    <header
+      className="sticky top-0 z-30 border-b border-gold/20 bg-noir/90 backdrop-blur-md"
+      style={{ viewTransitionName: "site-header" }}
+    >
       <div className="flex items-center justify-between px-[5vw] py-[22px]">
         {/* left nav (desktop) */}
         <nav className="hidden flex-1 items-center gap-[26px] font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em] md:flex">

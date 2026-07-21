@@ -16,6 +16,7 @@ export function Marquee({
   return (
     <div
       className={`overflow-hidden bg-gold py-2.5 text-noir-deep ${className}`}
+      style={{ viewTransitionName: "site-marquee" }}
     >
       <div className="flex w-max animate-[ldn-marquee_22s_linear_infinite] font-mono text-[11px] font-semibold uppercase tracking-[0.18em]">
         <span className="flex gap-[34px] whitespace-nowrap pr-[34px]">

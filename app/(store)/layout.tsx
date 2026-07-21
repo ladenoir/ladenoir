@@ -1,3 +1,4 @@
+import { ViewTransition } from "react";
 import { CartProvider } from "@/components/store/cart-context";
 import { WishlistProvider } from "@/components/store/wishlist-context";
 import { MotionProvider } from "@/components/motion/MotionProvider";
@@ -17,7 +18,21 @@ export default function StoreLayout({
           <div className="flex min-h-screen flex-col bg-noir text-cream">
             <Marquee />
             <SiteHeader />
-            <main className="flex-1">{children}</main>
+            <ViewTransition
+              enter={{
+                "nav-forward": "nav-forward",
+                "nav-back": "nav-back",
+                default: "none",
+              }}
+              exit={{
+                "nav-forward": "nav-forward",
+                "nav-back": "nav-back",
+                default: "none",
+              }}
+              default="none"
+            >
+              <main className="flex-1">{children}</main>
+            </ViewTransition>
             <SiteFooter />
           </div>
         </MotionProvider>

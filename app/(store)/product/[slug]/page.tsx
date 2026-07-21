@@ -1,3 +1,4 @@
+import { ViewTransition } from "react";
 import { notFound } from "next/navigation";
 import { getProductBySlug, getRelatedProducts } from "@/lib/queries";
 import { ProductDetail } from "./ProductDetail";
@@ -29,7 +30,9 @@ export default async function ProductPage({
 
   return (
     <>
-      <ProductDetail product={product} />
+      <ViewTransition enter="slide-up" default="none">
+        <ProductDetail product={product} />
+      </ViewTransition>
 
       <section className="border-t border-gold/20 px-[5vw] pb-20 pt-16">
         <h2 className="mb-7 font-serif text-[28px] font-medium sm:text-[40px]">

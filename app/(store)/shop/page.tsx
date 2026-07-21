@@ -1,3 +1,4 @@
+import { ViewTransition } from "react";
 import { getCategories, getProducts } from "@/lib/queries";
 import { ShopGrid } from "./ShopGrid";
 
@@ -32,7 +33,9 @@ export default async function ShopPage({
           AW26 — Heir to the Night. Limited runs, cut for the after-hours.
         </p>
       </div>
-      <ShopGrid products={products} categories={catNames} initial={initial} />
+      <ViewTransition enter="slide-up" default="none">
+        <ShopGrid products={products} categories={catNames} initial={initial} />
+      </ViewTransition>
     </>
   );
 }

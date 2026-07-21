@@ -31,7 +31,10 @@ const COLUMNS = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-gold/20 bg-noir-deep px-[5vw] pb-[30px] pt-14 text-parchment">
+    <footer
+      className="border-t border-gold/20 bg-noir-deep px-[5vw] pb-[30px] pt-14 text-parchment"
+      style={{ viewTransitionName: "site-footer" }}
+    >
       <div className="mb-10 flex flex-wrap justify-between gap-10">
         <div className="max-w-[320px]">
           <div className="mb-3.5 font-serif text-[26px] font-semibold tracking-[0.22em] text-gold">
