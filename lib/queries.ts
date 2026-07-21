@@ -55,6 +55,21 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   return (data as unknown as Product) ?? null;
 }
 
+export async function getRelatedProducts(
+  excludeSlug: string,
+  limit = 4
+): Promise<Product[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select(PRODUCT_SELECT)
+    .eq("status", "Live")
+    .neq("slug", excludeSlug)
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as unknown as Product[];
+}
+
 export async function getCategories(): Promise<Category[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

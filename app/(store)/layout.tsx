@@ -1,4 +1,5 @@
 import { CartProvider } from "@/components/store/cart-context";
+import { WishlistProvider } from "@/components/store/wishlist-context";
 import { Marquee } from "@/components/store/Marquee";
 import { SiteHeader } from "@/components/store/SiteHeader";
 import { SiteFooter } from "@/components/store/SiteFooter";
@@ -10,12 +11,14 @@ export default function StoreLayout({
 }) {
   return (
     <CartProvider>
-      <div className="flex min-h-screen flex-col bg-noir text-cream">
-        <Marquee />
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
-      </div>
+      <WishlistProvider>
+        <div className="flex min-h-screen flex-col bg-noir text-cream">
+          <Marquee />
+          <SiteHeader />
+          <main className="flex-1">{children}</main>
+          <SiteFooter />
+        </div>
+      </WishlistProvider>
     </CartProvider>
   );
 }
