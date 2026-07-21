@@ -79,3 +79,36 @@ export async function getCategories(): Promise<Category[]> {
   if (error) throw error;
   return (data ?? []) as Category[];
 }
+
+export type OrderRow = {
+  id: string;
+  order_no: string;
+  email: string;
+  full_name: string | null;
+  total_inr: number;
+  status: string;
+  created_at: string;
+  order_items: {
+    id: string;
+    name: string;
+    size: string | null;
+    qty: number;
+    price_inr: number;
+  }[];
+};
+
+export async function getUserOrders(): Promise<OrderRow[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await supabase
+    .from("orders")
+    .select(
+      "id,order_no,email,full_name,total_inr,status,created_at,order_items(id,name,size,qty,price_inr)"
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as OrderRow[];
+}

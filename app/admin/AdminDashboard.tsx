@@ -38,37 +38,18 @@ type Order = {
   status: OrderStatus;
 };
 
-const ALL_ORDERS: Order[] = [
-  { id: "#NOIR-4821", customer: "Rohan Mehta", email: "rohan@mail.com", items: "2 items", date: "Jul 21, 2026", total: "₹41,800", status: "Paid" },
-  { id: "#NOIR-4820", customer: "Aisha Kapoor", email: "aisha@mail.com", items: "1 item", date: "Jul 21, 2026", total: "₹32,000", status: "Fulfilled" },
-  { id: "#NOIR-4819", customer: "Dev Sharma", email: "dev@mail.com", items: "3 items", date: "Jul 20, 2026", total: "₹27,400", status: "Shipped" },
-  { id: "#NOIR-4818", customer: "Priya Nair", email: "priya@mail.com", items: "1 item", date: "Jul 20, 2026", total: "₹9,800", status: "Pending" },
-  { id: "#NOIR-4817", customer: "Kabir Singh", email: "kabir@mail.com", items: "2 items", date: "Jul 19, 2026", total: "₹18,900", status: "Fulfilled" },
-  { id: "#NOIR-4816", customer: "Meera Iyer", email: "meera@mail.com", items: "1 item", date: "Jul 19, 2026", total: "₹6,400", status: "Refunded" },
-  { id: "#NOIR-4815", customer: "Arnav Bose", email: "arnav@mail.com", items: "4 items", date: "Jul 18, 2026", total: "₹52,300", status: "Paid" },
-  { id: "#NOIR-4814", customer: "Sara Khan", email: "sara@mail.com", items: "2 items", date: "Jul 18, 2026", total: "₹23,000", status: "Shipped" },
-];
-
-const KPIS = [
-  { label: "Revenue (30d)", value: "₹24.6L", delta: "▲ 12.4% vs last" },
-  { label: "Orders", value: "312", delta: "▲ 6.1% vs last" },
-  { label: "Avg. order", value: "₹18,900", delta: "▲ 3.2% vs last" },
-  { label: "Returns", value: "2.1%", delta: "▼ 0.4% vs last" },
-];
-
-const CHART = [72, 58, 90, 66, 100, 84, 95];
-const CHART_DAYS = ["M", "T", "W", "T", "F", "S", "S"];
-
-const TOP_PRODUCTS = [
-  { name: "Panthère Overcoat", sold: 48, rev: "₹15.3L", img: "https://images.unsplash.com/photo-1490578474895-699cd4e2cf59?auto=format&fit=crop&w=200&q=70" },
-  { name: "Souvenir Bomber", sold: 41, rev: "₹7.7L", img: "https://images.unsplash.com/photo-1516826957135-700dedea698c?auto=format&fit=crop&w=200&q=70" },
-  { name: "Crest Heavy Hoodie", sold: 39, rev: "₹3.8L", img: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=200&q=70" },
-  { name: "Onyx Ribbed Knit", sold: 28, rev: "₹3.1L", img: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?auto=format&fit=crop&w=200&q=70" },
-];
-
 type ProductStatus = "Live" | "Draft";
 type StockTone = "green" | "amber" | "red";
-const PRODUCTS: {
+type Tier = "VIP" | "Member" | "New";
+
+export type AdminKpi = { label: string; value: string; delta: string };
+export type AdminTopProduct = {
+  name: string;
+  sold: number;
+  rev: string;
+  img: string;
+};
+export type AdminProduct = {
   name: string;
   cat: string;
   price: string;
@@ -76,31 +57,27 @@ const PRODUCTS: {
   stockTone: StockTone;
   status: ProductStatus;
   img: string;
-}[] = [
-  { name: "Panthère Overcoat", cat: "Outerwear", price: "₹32,000", stock: "18 in stock", stockTone: "green", status: "Live", img: "https://images.unsplash.com/photo-1490578474895-699cd4e2cf59?auto=format&fit=crop&w=200&q=70" },
-  { name: "Souvenir Bomber", cat: "Outerwear", price: "₹18,900", stock: "6 low", stockTone: "amber", status: "Live", img: "https://images.unsplash.com/photo-1516826957135-700dedea698c?auto=format&fit=crop&w=200&q=70" },
-  { name: "Crest Heavy Hoodie", cat: "Knitwear", price: "₹9,800", stock: "24 in stock", stockTone: "green", status: "Live", img: "https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=200&q=70" },
-  { name: "Gilded Cargo", cat: "Bottoms", price: "₹12,400", stock: "0 sold out", stockTone: "red", status: "Draft", img: "https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?auto=format&fit=crop&w=200&q=70" },
-  { name: "Onyx Ribbed Knit", cat: "Knitwear", price: "₹11,200", stock: "14 in stock", stockTone: "green", status: "Live", img: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?auto=format&fit=crop&w=200&q=70" },
-  { name: "Gold Signet Chain", cat: "Accessories", price: "₹6,400", stock: "31 in stock", stockTone: "green", status: "Live", img: "https://images.unsplash.com/photo-1611085583191-a3b181a88401?auto=format&fit=crop&w=200&q=70" },
-];
-
-type Tier = "VIP" | "Member" | "New";
-const CUSTOMERS: {
+};
+export type AdminCustomer = {
   name: string;
   email: string;
   location: string;
   orders: string;
   spent: string;
   tier: Tier;
-}[] = [
-  { name: "Rohan Mehta", email: "rohan@mail.com", location: "Mumbai, IN", orders: "8", spent: "₹2.4L", tier: "VIP" },
-  { name: "Aisha Kapoor", email: "aisha@mail.com", location: "Delhi, IN", orders: "5", spent: "₹1.6L", tier: "VIP" },
-  { name: "Dev Sharma", email: "dev@mail.com", location: "Bengaluru, IN", orders: "3", spent: "₹78K", tier: "Member" },
-  { name: "Priya Nair", email: "priya@mail.com", location: "Kochi, IN", orders: "2", spent: "₹41K", tier: "Member" },
-  { name: "Kabir Singh", email: "kabir@mail.com", location: "Chandigarh, IN", orders: "6", spent: "₹1.9L", tier: "VIP" },
-  { name: "Meera Iyer", email: "meera@mail.com", location: "Chennai, IN", orders: "1", spent: "₹6.4K", tier: "New" },
-];
+};
+
+export type AdminData = {
+  kpis: AdminKpi[];
+  chart: number[];
+  topProducts: AdminTopProduct[];
+  orders: Order[];
+  products: AdminProduct[];
+  customers: AdminCustomer[];
+  adminName: string;
+};
+
+const CHART_DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 const NAV: { key: View; label: string; icon: typeof LayoutGrid }[] = [
   { key: "dash", label: "Dashboard", icon: LayoutGrid },
@@ -154,17 +131,19 @@ const initialsOf = (name: string) =>
 
 /* ---------- component ---------- */
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ data }: { data: AdminData }) {
   const [view, setView] = useState<View>("dash");
   const [orderFilter, setOrderFilter] = useState<(OrderStatus | "All")>("All");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [title, subtitle] = TITLES[view];
+  const allOrders = data.orders;
   const orders =
     orderFilter === "All"
-      ? ALL_ORDERS
-      : ALL_ORDERS.filter((o) => o.status === orderFilter);
-  const recentOrders = ALL_ORDERS.slice(0, 5);
+      ? allOrders
+      : allOrders.filter((o) => o.status === orderFilter);
+  const recentOrders = allOrders.slice(0, 5);
+  const adminInitials = initialsOf(data.adminName) || "AN";
 
   const go = (v: View) => {
     setView(v);
@@ -218,10 +197,10 @@ export default function AdminDashboard() {
       </Link>
       <div className="flex items-center gap-2.5 px-3 py-[11px]">
         <div className="flex size-[30px] items-center justify-center rounded-full bg-gold font-mono text-xs font-bold text-ink-deep">
-          AN
+          {adminInitials}
         </div>
         <div>
-          <div className="text-xs font-medium text-cream">Arjun Noir</div>
+          <div className="text-xs font-medium text-cream">{data.adminName}</div>
           <div className="font-mono text-[10px] text-cream/40">Owner</div>
         </div>
       </div>
@@ -289,6 +268,9 @@ export default function AdminDashboard() {
         <div className="px-5 pb-16 pt-7 sm:px-[34px]">
           {view === "dash" && (
             <DashboardView
+              kpis={data.kpis}
+              chart={data.chart}
+              topProducts={data.topProducts}
               recentOrders={recentOrders}
               onViewAll={() => setView("orders")}
             />
@@ -300,8 +282,10 @@ export default function AdminDashboard() {
               setOrderFilter={setOrderFilter}
             />
           )}
-          {view === "products" && <ProductsView />}
-          {view === "customers" && <CustomersView />}
+          {view === "products" && <ProductsView products={data.products} />}
+          {view === "customers" && (
+            <CustomersView customers={data.customers} />
+          )}
         </div>
       </div>
     </div>
@@ -319,9 +303,15 @@ const panel = "border border-gold/15 bg-ink-panel rounded-none";
 /* ---------- Dashboard ---------- */
 
 function DashboardView({
+  kpis,
+  chart,
+  topProducts,
   recentOrders,
   onViewAll,
 }: {
+  kpis: AdminKpi[];
+  chart: number[];
+  topProducts: AdminTopProduct[];
   recentOrders: Order[];
   onViewAll: () => void;
 }) {
@@ -329,7 +319,7 @@ function DashboardView({
     <>
       {/* KPIs */}
       <div className="mb-[26px] grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
-        {KPIS.map((k) => (
+        {kpis.map((k) => (
           <Card key={k.label} className={cn(panel, "gap-0 p-[22px]")}>
             <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-cream/50">
               {k.label}
@@ -352,7 +342,7 @@ function DashboardView({
             <div className="font-mono text-xs font-medium text-gold">₹6.4L total</div>
           </div>
           <div className="flex h-[180px] items-end gap-3.5">
-            {CHART.map((h, i) => (
+            {chart.map((h, i) => (
               <div
                 key={i}
                 className="flex h-full flex-1 flex-col items-center justify-end gap-2.5"
@@ -373,7 +363,7 @@ function DashboardView({
         <Card className={cn(panel, "p-6")}>
           <div className="mb-5 font-serif text-lg font-medium">Top pieces</div>
           <div className="flex flex-col gap-4">
-            {TOP_PRODUCTS.map((p) => (
+            {topProducts.map((p) => (
               <div key={p.name} className="flex items-center gap-3">
                 <div className="h-[46px] w-[38px] shrink-0 overflow-hidden bg-ink-raise">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -520,7 +510,7 @@ function MobileOrderCard({ order, showItems }: { order: Order; showItems?: boole
 
 /* ---------- Products ---------- */
 
-function ProductsView() {
+function ProductsView({ products }: { products: AdminProduct[] }) {
   return (
     <>
       <div className="mb-5 flex justify-end">
@@ -537,7 +527,7 @@ function ProductsView() {
           <div>Stock</div>
           <div>Status</div>
         </div>
-        {PRODUCTS.map((p) => (
+        {products.map((p) => (
           <div key={p.name}>
             {/* desktop */}
             <div className="hidden grid-cols-[2fr_1fr_1fr_1fr_1fr] items-center border-b border-gold/[0.06] px-6 py-3.5 transition-colors hover:bg-ink-hover md:grid">
@@ -582,7 +572,7 @@ function ProductsView() {
 
 /* ---------- Customers ---------- */
 
-function CustomersView() {
+function CustomersView({ customers }: { customers: AdminCustomer[] }) {
   return (
     <Card className={cn(panel, "gap-0 overflow-hidden p-0")}>
       <div className="hidden grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr] border-b border-gold/[0.12] px-6 py-4 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-cream/40 md:grid">
@@ -592,7 +582,7 @@ function CustomersView() {
         <div>Spent</div>
         <div>Tier</div>
       </div>
-      {CUSTOMERS.map((c) => {
+      {customers.map((c) => {
         const initials = initialsOf(c.name);
         return (
           <div key={c.email}>
