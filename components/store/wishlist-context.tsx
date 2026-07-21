@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -29,19 +30,33 @@ type WishState = {
 const WishlistContext = createContext<WishState | null>(null);
 const STORAGE_KEY = "ldn.wishlist.v1";
 
-export function WishlistProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<WishItem[]>([]);
-  const [ready, setReady] = useState(false);
+// read the stored wishlist once, synchronously — used as the lazy initial
+// state so the client's first render already has the hydrated value
+function readStoredWishlist(): WishItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setItems(JSON.parse(raw));
-    } catch {
-      /* ignore */
-    }
-    setReady(true);
-  }, []);
+// "has the client mounted yet" flag via useSyncExternalStore: server (and
+// the client's initial hydration pass) render `false`, then React
+// re-syncs to the real client snapshot right after hydration completes —
+// no manual setState-in-effect required.
+const subscribeNoop = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+const EMPTY_ITEMS: WishItem[] = [];
+
+export function WishlistProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<WishItem[]>(readStoredWishlist);
+  const ready = useSyncExternalStore(
+    subscribeNoop,
+    getClientSnapshot,
+    getServerSnapshot
+  );
 
   useEffect(() => {
     if (!ready) return;
@@ -52,6 +67,17 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     }
   }, [items, ready]);
 
+  // Expose an empty wishlist until `ready` flips on the client. This keeps
+  // the client's hydration-matching render identical to the server's (both
+  // see an empty wishlist) even though `items` itself may already hold the
+  // localStorage value — consumers that don't check `ready` themselves
+  // (e.g. the wishlist toggle button, which reads `has()` directly) still
+  // avoid a hydration mismatch.
+  const displayItems = useMemo(
+    () => (ready ? items : EMPTY_ITEMS),
+    [items, ready]
+  );
+
   const value = useMemo<WishState>(() => {
     const toggle = (item: WishItem) =>
       setItems((prev) =>
@@ -61,9 +87,9 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
       );
     const remove = (slug: string) =>
       setItems((prev) => prev.filter((i) => i.slug !== slug));
-    const has = (slug: string) => items.some((i) => i.slug === slug);
-    return { items, toggle, remove, has, count: items.length, ready };
-  }, [items, ready]);
+    const has = (slug: string) => displayItems.some((i) => i.slug === slug);
+    return { items: displayItems, toggle, remove, has, count: displayItems.length, ready };
+  }, [displayItems, ready]);
 
   return <WishlistContext value={value}>{children}</WishlistContext>;
 }

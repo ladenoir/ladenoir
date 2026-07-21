@@ -90,7 +90,7 @@ export default async function AdminPage() {
   const orders = orderRows ?? [];
 
   // KPIs
-  const now = Date.now();
+  const now = new Date().getTime();
   const in30 = (iso: string) =>
     now - new Date(iso).getTime() <= 30 * 864e5;
   const last30 = orders.filter((o) => in30(o.created_at));

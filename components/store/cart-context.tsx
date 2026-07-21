@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -33,20 +34,33 @@ const CartContext = createContext<CartState | null>(null);
 const STORAGE_KEY = "ldn.cart.v1";
 const keyOf = (slug: string, size: string) => `${slug}::${size}`;
 
-export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [ready, setReady] = useState(false);
+// read the stored cart once, synchronously — used as the lazy initial
+// state so the client's first render already has the hydrated value
+function readStoredCart(): CartItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 
-  // hydrate from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setItems(JSON.parse(raw));
-    } catch {
-      /* ignore */
-    }
-    setReady(true);
-  }, []);
+// "has the client mounted yet" flag via useSyncExternalStore: server (and
+// the client's initial hydration pass) render `false`, then React
+// re-syncs to the real client snapshot right after hydration completes —
+// no manual setState-in-effect required.
+const subscribeNoop = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+const EMPTY_ITEMS: CartItem[] = [];
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<CartItem[]>(readStoredCart);
+  const ready = useSyncExternalStore(
+    subscribeNoop,
+    getClientSnapshot,
+    getServerSnapshot
+  );
 
   // persist
   useEffect(() => {
@@ -57,6 +71,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, [items, ready]);
+
+  // Expose an empty cart until `ready` flips on the client. This keeps the
+  // client's hydration-matching render identical to the server's (both see
+  // an empty cart) even though `items` itself may already hold the
+  // localStorage value — consumers that don't check `ready` themselves
+  // (e.g. anything reading `items`/`count` directly) still avoid a
+  // hydration mismatch.
+  const displayItems = useMemo(
+    () => (ready ? items : EMPTY_ITEMS),
+    [items, ready]
+  );
 
   const value = useMemo<CartState>(() => {
     const add: CartState["add"] = (item, qty = 1) => {
@@ -84,10 +109,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
             )
       );
     const clear = () => setItems([]);
-    const count = items.reduce((n, i) => n + i.qty, 0);
-    const subtotal = items.reduce((n, i) => n + i.price * i.qty, 0);
-    return { items, add, remove, setQty, clear, count, subtotal, ready };
-  }, [items, ready]);
+    const count = displayItems.reduce((n, i) => n + i.qty, 0);
+    const subtotal = displayItems.reduce((n, i) => n + i.price * i.qty, 0);
+    return { items: displayItems, add, remove, setQty, clear, count, subtotal, ready };
+  }, [displayItems, ready]);
 
   return <CartContext value={value}>{children}</CartContext>;
 }
