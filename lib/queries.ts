@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Category, Product } from "@/lib/types";
 
@@ -99,16 +100,18 @@ export type OrderRow = {
 
 /**
  * Cutoff timestamps (ms since epoch) for rolling KPI windows, e.g. "orders
- * placed in the last 30 days". The clock read lives here, in the
- * data-fetching layer, instead of inside a Server Component's render body —
- * callers receive already-computed values and stay pure.
+ * placed in the last 30 days". Wrapped in React's `cache()` so every call
+ * within a single request/render pass reads the clock exactly once and
+ * returns the identical memoized value — render stays idempotent even
+ * though a real clock read has to happen somewhere.
  */
-export function getKpiWindowCutoffs(now: number = Date.now()) {
+export const getKpiWindowCutoffs = cache(function getKpiWindowCutoffs() {
+  const now = Date.now();
   return {
     last7: now - 7 * 864e5,
     last30: now - 30 * 864e5,
   };
-}
+});
 
 export async function getUserOrders(): Promise<OrderRow[]> {
   const supabase = await createClient();
