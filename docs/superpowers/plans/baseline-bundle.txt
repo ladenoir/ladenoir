@@ -1,0 +1,41 @@
+
+> la-de-noir@0.1.0 build
+> next build
+
+▲ Next.js 16.2.10 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.2s
+  Running TypeScript ...
+  Finished TypeScript in 3.4s ...
+  Collecting page data using 17 workers ...
+  Generating static pages using 17 workers (0/15) ...
+  Generating static pages using 17 workers (3/15) 
+  Generating static pages using 17 workers (7/15) 
+  Generating static pages using 17 workers (11/15) 
+✓ Generating static pages using 17 workers (15/15) in 917ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /account
+├ ƒ /admin
+├ ƒ /admin/products/new
+├ ○ /cart
+├ ○ /checkout
+├ ○ /contact
+├ ○ /help
+├ ○ /maison
+├ ƒ /product/[slug]
+├ ƒ /search
+├ ƒ /shop
+└ ○ /wishlist
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
