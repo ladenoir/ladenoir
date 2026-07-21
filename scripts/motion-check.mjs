@@ -1,5 +1,19 @@
-// Motion verification harness. Run against a dev or prod server:
+// Motion verification harness.
+//
+// IMPORTANT — run this against a PRODUCTION server, not `next dev`:
+//   npm run build && npm run start
 //   node scripts/motion-check.mjs
+//
+// The morph assertion ("PDP claims a product-* morph name") is known to
+// fail under `next dev` on otherwise-correct code. This is an environment
+// quirk of the dev server (unminified/unoptimized dev bundles change the
+// timing of when React's ViewTransition applies the live
+// `view-transition-name` inline style relative to this script's polling),
+// not a regression signal — a failure there does not mean the morph is
+// broken, and a pass there does not mean it works in production. Only a
+// run against `next start` is authoritative. See git history / task-3
+// report for the original investigation.
+//
 // Env: BASE_URL (default http://localhost:3000)
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
@@ -9,6 +23,33 @@ import { fileURLToPath } from "node:url";
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", ".screens");
 mkdirSync(OUT, { recursive: true });
+
+// Next.js serves dev-mode static assets under a literal "development"
+// build-id path (e.g. /_next/static/development/_buildManifest.js), which
+// only ever appears in HTML served by `next dev`. That makes it a simple,
+// reliable way to detect "this run is talking to a dev server" and repeat
+// the warning above where it can't be missed, rather than relying on
+// whoever runs this script to remember it.
+console.warn(
+  "\n[motion-check] This suite must be run against a PRODUCTION server " +
+    "(`npm run build && npm run start`). The morph check is known to give " +
+    "false results under `next dev`.\n"
+);
+try {
+  const res = await fetch(BASE, { redirect: "manual" });
+  const html = await res.text();
+  if (html.includes("/_next/static/development/")) {
+    console.warn(
+      `[motion-check] WARNING: ${BASE} looks like a \`next dev\` server ` +
+        `(found /_next/static/development/ in the HTML). Results — ` +
+        `especially the morph check — are NOT trustworthy from this run. ` +
+        `Re-run against \`npm run build && npm run start\`.\n`
+    );
+  }
+} catch {
+  // If BASE isn't reachable yet, the checks below will fail loudly on
+  // their own; no need to double-report here.
+}
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
@@ -160,6 +201,35 @@ for (const vp of VIEWPORTS) {
 
   if (before === after) fail("product card does not transform on hover");
   else pass("product card transforms on hover");
+
+  await ctx.close();
+}
+
+// ── Reduced motion disables the hover spring ────────────────────
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+
+  const card = page.locator("a[href^='/product/']").first();
+  const before = await card.evaluate((el) => getComputedStyle(el).transform);
+  await card.hover();
+  // Give the (should-be-suppressed) spring more time than it would ever
+  // need to settle under normal motion, so this isn't just catching the
+  // animation mid-flight.
+  await page.waitForTimeout(600);
+  const after = await card.evaluate((el) => getComputedStyle(el).transform);
+
+  if (before !== after)
+    fail(
+      `product card transform changed under prefers-reduced-motion: reduce ` +
+        `(before=${before}, after=${after}) — MotionConfig reducedMotion="user" is not wired up`
+    );
+  else pass("product card transform unchanged under prefers-reduced-motion: reduce");
 
   await ctx.close();
 }

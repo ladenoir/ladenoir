@@ -3,6 +3,7 @@
 import { useEffect, useState, ViewTransition } from "react";
 import Link from "next/link";
 import * as m from "motion/react-m";
+import { useReducedMotion } from "motion/react";
 import { useCart } from "./cart-context";
 import { SPRING } from "@/lib/motion";
 import { formatINR, type Product } from "@/lib/types";
@@ -51,6 +52,18 @@ export function ProductCard({
   morph?: boolean;
 }) {
   useMorphNameGuard(product.slug, morph);
+
+  // MotionProvider's <MotionConfig reducedMotion="user"> makes Motion honor
+  // prefers-reduced-motion for every m/motion component, but per Motion's
+  // own docs (motion.dev/docs/react-accessibility) that only strips the
+  // *animation* — the whileHover/whileTap target still gets applied,
+  // instantly, so the card would still jump on hover instead of staying
+  // fully static. The card lift is a decorative flourish, not information,
+  // so under reduced motion we skip requesting the target altogether by
+  // passing undefined instead of relying on MotionConfig's instant-snap
+  // fallback. See scripts/motion-check.mjs's "Reduced motion disables the
+  // hover spring" assertion.
+  const shouldReduceMotion = useReducedMotion();
 
   const { add } = useCart();
   const img = product.image_url ?? "";
@@ -112,8 +125,8 @@ export function ProductCard({
       prefetch={prefetchIntent ? true : false}
       onMouseEnter={() => setPrefetchIntent(true)}
       className="group block"
-      whileHover={{ y: -6, scale: 1.03 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.03 }}
+      whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
       transition={SPRING.snappy}
       style={{ transformOrigin: "center bottom" }}
     >
