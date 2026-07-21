@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getKpiWindowCutoffs } from "@/lib/queries";
 import { formatINR } from "@/lib/types";
 import AdminDashboard, {
   type AdminData,
@@ -90,9 +91,8 @@ export default async function AdminPage() {
   const orders = orderRows ?? [];
 
   // KPIs
-  const now = new Date().getTime();
-  const in30 = (iso: string) =>
-    now - new Date(iso).getTime() <= 30 * 864e5;
+  const { last7: cutoff7, last30: cutoff30 } = getKpiWindowCutoffs();
+  const in30 = (iso: string) => new Date(iso).getTime() >= cutoff30;
   const last30 = orders.filter((o) => in30(o.created_at));
   const revenue30 = last30.reduce((n, o) => n + (o.total_inr ?? 0), 0);
   const avgOrder = last30.length ? Math.round(revenue30 / last30.length) : 0;
@@ -108,7 +108,7 @@ export default async function AdminPage() {
   const dayTotals = [0, 0, 0, 0, 0, 0, 0];
   orders.forEach((o) => {
     const d = new Date(o.created_at);
-    if (now - d.getTime() <= 7 * 864e5) {
+    if (d.getTime() >= cutoff7) {
       const idx = (d.getDay() + 6) % 7; // Mon=0
       dayTotals[idx] += o.total_inr ?? 0;
     }

@@ -97,6 +97,19 @@ export type OrderRow = {
   }[];
 };
 
+/**
+ * Cutoff timestamps (ms since epoch) for rolling KPI windows, e.g. "orders
+ * placed in the last 30 days". The clock read lives here, in the
+ * data-fetching layer, instead of inside a Server Component's render body —
+ * callers receive already-computed values and stay pure.
+ */
+export function getKpiWindowCutoffs(now: number = Date.now()) {
+  return {
+    last7: now - 7 * 864e5,
+    last30: now - 30 * 864e5,
+  };
+}
+
 export async function getUserOrders(): Promise<OrderRow[]> {
   const supabase = await createClient();
   const {
