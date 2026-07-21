@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, ViewTransition } from "react";
+import { useEffect, useState, ViewTransition } from "react";
 import Link from "next/link";
 import { useCart } from "./cart-context";
 import { formatINR, type Product } from "@/lib/types";
@@ -46,6 +46,23 @@ export function ProductCard({
   const img = product.image_url ?? "";
   const cat = product.category?.name ?? "";
 
+  // Hover-triggered prefetch: node_modules/next/dist/docs/01-app/02-guides/
+  // prefetching.md, "Preventing too many prefetches". A card grid (unbounded
+  // /shop, PDP related rail) is exactly the "large list of links" case the
+  // guide warns about — `prefetch={true}` on every card fires a full RSC
+  // fetch (two Supabase queries) per card on viewport entry, not on intent.
+  // The guide's fix: eject from viewport-triggered prefetch (`false` until
+  // intent) and defer to hover (`onMouseEnter` flips it on). The guide's own
+  // example restores `null` (default "auto") on hover, but PDP is a dynamic
+  // route with a loading.tsx boundary, so "auto" only warms the shell, not
+  // the Supabase-backed RSC payload (see prefetching.md's static-vs-dynamic
+  // table) — that's the whole reason the previous commit used `true` in the
+  // first place. So on hover we go straight to `true`, not `null`: same
+  // "defer until intent" shape the guide prescribes, just the full-payload
+  // target this dynamic route actually needs for the morph to have warm data
+  // at click time.
+  const [prefetchIntent, setPrefetchIntent] = useState(false);
+
   const quickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -71,12 +88,19 @@ export function ProductCard({
        * boundary, not the actual product data — the click would still hit
        * the network and show the skeleton. `prefetch={true}` forces the
        * full route (including the Supabase-backed RSC payload) to be
-       * fetched on hover/viewport, so a normal click resolves from the
-       * client cache and completes within a single View Transition,
-       * letting the shared-element morph fire. See lib/queries.ts for the
-       * server-side cache that keeps that prefetch fast.
+       * fetched, so a normal click resolves from the client cache and
+       * completes within a single View Transition, letting the shared-
+       * element morph fire. See lib/queries.ts for the server-side cache
+       * that keeps that prefetch fast.
+       *
+       * Firing that on every card's viewport entry is exactly what
+       * prefetching.md's "Preventing too many prefetches" warns against for
+       * large link lists (the unbounded /shop grid, the PDP related rail),
+       * so we hold prefetch off (`false`) until the user shows intent via
+       * hover, then flip to `true` — see prefetchIntent above.
        */
-      prefetch={true}
+      prefetch={prefetchIntent ? true : false}
+      onMouseEnter={() => setPrefetchIntent(true)}
       className="group block"
     >
       <div className="relative mb-3.5 aspect-[4/5] overflow-hidden border border-gold/12 bg-noir-panel transition-[border-color,transform] duration-500 group-hover:-translate-y-1 group-hover:border-gold">
