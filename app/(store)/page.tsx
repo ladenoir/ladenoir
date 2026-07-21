@@ -1,9 +1,9 @@
+import Image from "next/image";
 import Link from "next/link";
 import { getCategories, getFeaturedProducts, getProducts } from "@/lib/queries";
 import { ProductCard } from "@/components/store/ProductCard";
 
-const HERO =
-  "https://images.unsplash.com/photo-1490114538077-0a7f8cb49891?auto=format&fit=crop&w=1500&q=80";
+const HERO = "/hero-panthere.png";
 
 const CATEGORY_IMG: Record<string, string> = {
   Outerwear:
@@ -35,14 +35,16 @@ export default async function HomePage() {
     <>
       {/* HERO */}
       <section className="relative h-[560px] overflow-hidden bg-burgundy-deep sm:h-[660px]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={HERO}
-          alt="AW26 campaign"
-          className="absolute inset-0 size-full animate-[ldn-kb_18s_ease-in-out_infinite_alternate] object-cover brightness-[0.8] contrast-[1.05] grayscale"
+          alt="AW26 campaign — panther in fog"
+          fill
+          priority
+          sizes="100vw"
+          className="animate-[ldn-kb_18s_ease-in-out_infinite_alternate] object-cover object-[58%_center] brightness-[0.62] contrast-[1.15] grayscale"
         />
-        <div className="absolute inset-0 bg-burgundy mix-blend-multiply opacity-60" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(61,10,13,0.55)_0%,rgba(61,10,13,0.25)_40%,rgba(61,10,13,0.75)_100%)]" />
+        <div className="absolute inset-0 bg-burgundy mix-blend-multiply opacity-80" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(61,10,13,0.7)_0%,rgba(61,10,13,0.3)_40%,rgba(61,10,13,0.85)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_20%,rgba(198,160,76,0.15)_0%,rgba(61,10,13,0)_55%)]" />
         <div className="absolute left-[5vw] top-6 flex items-center gap-2.5 font-mono text-[10px] tracking-[0.24em] text-sand">
           <span className="size-1.5 animate-[ldn-grain_2.4s_ease-in-out_infinite] rounded-full bg-gold" />
