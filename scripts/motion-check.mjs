@@ -145,6 +145,25 @@ for (const vp of VIEWPORTS) {
   await ctx.close();
 }
 
+// ── Card hover spring ────────────────────────────────────────────
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+
+  const card = page.locator("a[href^='/product/']").first();
+  const before = await card.evaluate((el) => getComputedStyle(el).transform);
+  await card.hover();
+  await page.waitForTimeout(400);
+  const after = await card.evaluate((el) => getComputedStyle(el).transform);
+
+  if (before === after) fail("product card does not transform on hover");
+  else pass("product card transforms on hover");
+
+  await ctx.close();
+}
+
 await browser.close();
 
 if (failures.length) {

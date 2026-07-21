@@ -2,8 +2,18 @@
 
 import { useEffect, useState, ViewTransition } from "react";
 import Link from "next/link";
+import * as m from "motion/react-m";
 import { useCart } from "./cart-context";
+import { SPRING } from "@/lib/motion";
 import { formatINR, type Product } from "@/lib/types";
+
+// The hover spring must land on the anchor itself: getComputedStyle checks
+// (and just generally "the card" as a hit target) act on the <a>, not on a
+// wrapper div nested inside it. m.create() gives Link a motion-capable
+// version that forwards the whileHover/whileTap transform straight onto the
+// underlying <a> (next/link forwards its ref there), instead of animating an
+// inner element the Link merely contains.
+const MotionLink = m.create(Link);
 
 const claimed = new Set<string>();
 
@@ -79,7 +89,7 @@ export function ProductCard({
   };
 
   return (
-    <Link
+    <MotionLink
       href={`/product/${product.slug}`}
       transitionTypes={["nav-forward"]}
       /**
@@ -102,8 +112,12 @@ export function ProductCard({
       prefetch={prefetchIntent ? true : false}
       onMouseEnter={() => setPrefetchIntent(true)}
       className="group block"
+      whileHover={{ y: -6, scale: 1.03 }}
+      whileTap={{ scale: 0.98 }}
+      transition={SPRING.snappy}
+      style={{ transformOrigin: "center bottom" }}
     >
-      <div className="relative mb-3.5 aspect-[4/5] overflow-hidden border border-gold/12 bg-noir-panel transition-[border-color,transform] duration-500 group-hover:-translate-y-1 group-hover:border-gold">
+      <div className="relative mb-3.5 aspect-[4/5] overflow-hidden border border-gold/12 bg-noir-panel transition-[border-color] duration-500 group-hover:border-gold">
         {morph ? (
           <ViewTransition name={`product-${product.slug}`} share="morph">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -155,6 +169,6 @@ export function ProductCard({
         </div>
       )}
       <div className="mt-[3px] font-mono text-[11px] text-cream/45">{cat}</div>
-    </Link>
+    </MotionLink>
   );
 }

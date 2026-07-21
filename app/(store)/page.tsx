@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { getCategories, getFeaturedProducts, getProducts } from "@/lib/queries";
 import { ProductCard } from "@/components/store/ProductCard";
+import { Reveal } from "@/components/motion/Reveal";
+import { STAGGER } from "@/lib/motion";
 
 const HERO = "/hero-panthere.png";
 
@@ -69,31 +71,32 @@ export default async function HomePage() {
 
       {/* CATEGORY STRIP */}
       <section className="grid grid-cols-2 border-t border-gold/20 lg:grid-cols-4">
-        {strip.map((c) => (
-          <Link
-            key={c.id}
-            href={`/shop?c=${encodeURIComponent(c.name)}`}
-            transitionTypes={["nav-forward"]}
-            className="group relative aspect-[1/1.15] overflow-hidden border-b border-r border-gold/20 bg-burgundy"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={CATEGORY_IMG[c.name]}
-              alt={c.name}
-              className="absolute inset-0 size-full object-cover brightness-[0.72] transition-[transform,filter] duration-[600ms] group-hover:scale-[1.06] group-hover:brightness-90"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(61,10,13,0)_40%,rgba(61,10,13,0.8)_100%)]" />
-            <div className="absolute inset-0 flex items-end p-5">
-              <div>
-                <div className="mb-1.5 font-mono text-[10px] tracking-[0.14em] text-sand/70">
-                  {String(countByCat(c.name)).padStart(2, "0")} pieces
-                </div>
-                <div className="font-serif text-[26px] font-medium text-cream">
-                  {c.name}
+        {strip.map((c, i) => (
+          <Reveal key={c.id} delay={i * STAGGER}>
+            <Link
+              href={`/shop?c=${encodeURIComponent(c.name)}`}
+              transitionTypes={["nav-forward"]}
+              className="group relative block aspect-[1/1.15] overflow-hidden border-b border-r border-gold/20 bg-burgundy"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={CATEGORY_IMG[c.name]}
+                alt={c.name}
+                className="absolute inset-0 size-full object-cover brightness-[0.72] transition-[transform,filter] duration-[600ms] group-hover:scale-[1.06] group-hover:brightness-90"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(61,10,13,0)_40%,rgba(61,10,13,0.8)_100%)]" />
+              <div className="absolute inset-0 flex items-end p-5">
+                <div>
+                  <div className="mb-1.5 font-mono text-[10px] tracking-[0.14em] text-sand/70">
+                    {String(countByCat(c.name)).padStart(2, "0")} pieces
+                  </div>
+                  <div className="font-serif text-[26px] font-medium text-cream">
+                    {c.name}
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
+            </Link>
+          </Reveal>
         ))}
       </section>
 
@@ -112,17 +115,21 @@ export default async function HomePage() {
           </Link>
         </div>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
-          {featured.map((p) => (
-            <ProductCard key={p.id} product={p} morph />
+          {featured.map((p, i) => (
+            <Reveal key={p.id} delay={i * STAGGER}>
+              <ProductCard product={p} morph />
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* STATEMENT */}
       <section className="border-t border-gold/20 px-[5vw] py-20 text-center">
-        <p className="mx-auto max-w-[760px] font-serif text-3xl font-normal italic leading-tight text-cream sm:text-[44px]">
-          &ldquo;We don&rsquo;t make clothes for the daylight.&rdquo;
-        </p>
+        <Reveal>
+          <p className="mx-auto max-w-[760px] font-serif text-3xl font-normal italic leading-tight text-cream sm:text-[44px]">
+            &ldquo;We don&rsquo;t make clothes for the daylight.&rdquo;
+          </p>
+        </Reveal>
         <div className="mt-6 font-mono text-[11px] tracking-[0.2em] text-gold">
           — THE HOUSE OF NOIR
         </div>
