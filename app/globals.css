@@ -204,3 +204,34 @@ input::placeholder {
     opacity: 0.75;
   }
 }
+
+/* ── Motion system ────────────────────────────────────────────────
+   Mirrors lib/motion.ts. Keep the two in sync. */
+:root {
+  --duration-exit: 150ms;
+  --duration-enter: 210ms;
+  --duration-morph: 400ms;
+  --duration-hover: 450ms;
+  --ease-out: cubic-bezier(0.22, 0.7, 0.3, 1);
+  --ease-spring: linear(
+    0, .006, .026, .06, .108, .17, .247, .337, .437, .541, .645, .742,
+    .827, .898, .952, .99, 1.012, 1.021, 1.02, 1.014, 1.007, 1.001,
+    .998, .997, .998, 1
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
