@@ -65,6 +65,18 @@ export function ProductCard({
     <Link
       href={`/product/${product.slug}`}
       transitionTypes={["nav-forward"]}
+      /**
+       * PDP is a dynamic route with a loading.tsx boundary, so Next's
+       * default ("auto") prefetch would only warm the shell up to that
+       * boundary, not the actual product data — the click would still hit
+       * the network and show the skeleton. `prefetch={true}` forces the
+       * full route (including the Supabase-backed RSC payload) to be
+       * fetched on hover/viewport, so a normal click resolves from the
+       * client cache and completes within a single View Transition,
+       * letting the shared-element morph fire. See lib/queries.ts for the
+       * server-side cache that keeps that prefetch fast.
+       */
+      prefetch={true}
       className="group block"
     >
       <div className="relative mb-3.5 aspect-[4/5] overflow-hidden border border-gold/12 bg-noir-panel transition-[border-color,transform] duration-500 group-hover:-translate-y-1 group-hover:border-gold">
