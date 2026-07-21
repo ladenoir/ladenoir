@@ -514,7 +514,10 @@ function ProductsView({ products }: { products: AdminProduct[] }) {
   return (
     <>
       <div className="mb-5 flex justify-end">
-        <Button className="h-auto rounded-none bg-gold px-[22px] py-3 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-deep hover:bg-cream">
+        <Button
+          render={<Link href="/admin/products/new" />}
+          className="h-auto rounded-none bg-gold px-[22px] py-3 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-deep hover:bg-cream"
+        >
           + New product
         </Button>
       </div>
