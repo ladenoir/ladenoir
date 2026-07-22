@@ -2,9 +2,11 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -28,6 +30,8 @@ type CartState = {
   count: number;
   subtotal: number;
   ready: boolean;
+  /** Subscribe to "an item was added". Returns an unsubscribe function. */
+  onAdd: (fn: () => void) => () => void;
 };
 
 const CartContext = createContext<CartState | null>(null);
@@ -83,6 +87,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items, ready]
   );
 
+  const addListeners = useRef(new Set<() => void>());
+
+  const onAdd = useCallback((fn: () => void) => {
+    addListeners.current.add(fn);
+    return () => {
+      addListeners.current.delete(fn);
+    };
+  }, []);
+
   const value = useMemo<CartState>(() => {
     const add: CartState["add"] = (item, qty = 1) => {
       setItems((prev) => {
@@ -95,6 +108,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
         return [...prev, { ...item, qty }];
       });
+      for (const fn of addListeners.current) fn();
     };
     const remove: CartState["remove"] = (slug, size) =>
       setItems((prev) =>
@@ -111,8 +125,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const clear = () => setItems([]);
     const count = displayItems.reduce((n, i) => n + i.qty, 0);
     const subtotal = displayItems.reduce((n, i) => n + i.price * i.qty, 0);
-    return { items: displayItems, add, remove, setQty, clear, count, subtotal, ready };
-  }, [displayItems, ready]);
+    return { items: displayItems, add, remove, setQty, clear, count, subtotal, ready, onAdd };
+  }, [displayItems, ready, onAdd]);
 
   return <CartContext value={value}>{children}</CartContext>;
 }

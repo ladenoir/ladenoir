@@ -5,6 +5,7 @@ import { MotionProvider } from "@/components/motion/MotionProvider";
 import { Marquee } from "@/components/store/Marquee";
 import { SiteHeader } from "@/components/store/SiteHeader";
 import { SiteFooter } from "@/components/store/SiteFooter";
+import { CartDrawer } from "@/components/store/CartDrawer";
 
 export default function StoreLayout({
   children,
@@ -34,6 +35,7 @@ export default function StoreLayout({
               <main className="flex-1">{children}</main>
             </ViewTransition>
             <SiteFooter />
+            <CartDrawer />
           </div>
         </MotionProvider>
       </WishlistProvider>

@@ -234,6 +234,40 @@ for (const vp of VIEWPORTS) {
   await ctx.close();
 }
 
+// ── Cart drawer ──────────────────────────────────────────────────
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+
+  await page.locator("a[href^='/product/']").first().hover();
+  await page.getByRole("button", { name: /quick add/i }).first().click();
+  await page.waitForTimeout(700);
+
+  const drawer = page.getByRole("dialog", { name: /your bag/i });
+  if (!(await drawer.isVisible())) fail("cart drawer did not open on quick add");
+  else pass("cart drawer opens on quick add");
+
+  const focusInside = await page.evaluate(() => {
+    const d = document.querySelector("[role='dialog']");
+    return !!d && d.contains(document.activeElement);
+  });
+  if (!focusInside) fail("focus is not inside the open drawer");
+  else pass("focus moves into the drawer");
+
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(700);
+  if (await drawer.isVisible()) fail("Escape did not close the cart drawer");
+  else pass("Escape closes the cart drawer");
+
+  const cls = await measureCLS(page);
+  if (cls > 0) fail(`drawer caused CLS ${cls.toFixed(4)}`);
+  else pass("drawer causes no layout shift");
+
+  await ctx.close();
+}
+
 await browser.close();
 
 if (failures.length) {
