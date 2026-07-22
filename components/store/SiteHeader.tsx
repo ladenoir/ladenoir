@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import {
   AnimatePresence,
@@ -29,6 +29,102 @@ const RIGHT_LINKS = [
 // Header row shrinks to this fraction of its expanded height once condensed.
 const CONDENSE_SCALE = 0.72;
 
+/**
+ * Sliding gold underline for a nav group. Replaces a shared `layoutId`
+ * (which required the `domMax` feature bundle — see MotionProvider.tsx for
+ * the bundle-size writeup) with a manually measured indicator: one absolute
+ * `m.span` per group, positioned via each active link's own layout box
+ * (`offsetLeft`/`offsetWidth`, not `getBoundingClientRect`) so the header's
+ * `scaleY` condense transform on ancestors can never skew the measurement —
+ * `offsetLeft`/`offsetWidth` read the untransformed layout box, whereas a
+ * transform only repaints the visual box.
+ *
+ * One indicator per nav group (left, right), not one shared across both:
+ * the two groups sit on opposite sides of the logo, so a single indicator
+ * sliding from a left link to a right link would have to cross the entire
+ * header — a distracting, illegible motion for a decorative underline. Two
+ * independent indicators, each local to its own group, is both simpler and
+ * the more sensible reading of "a bar that slides between active links in
+ * the same group."
+ *
+ * Handles the `hidden md:inline` right-hand links: a link that's display:
+ * none reports `offsetWidth === 0`, which this treats the same as "no match
+ * in this group" — the indicator never renders pointing at a hidden link.
+ *
+ * `x`/`width` are both Motion "positional" keys
+ * (node_modules/motion-dom/dist/es/render/utils/keys-position.mjs), so
+ * `MotionConfig reducedMotion="user"` already forces them instant under
+ * `prefers-reduced-motion: reduce` with no extra work. The explicit
+ * `reduceMotion` transition override below is there anyway so the intent is
+ * visible in this file rather than resting on that internal Motion detail.
+ *
+ * The measurement lives in a hook called from `SiteHeader` itself — not in
+ * a child component's own effect. React attaches a host node's ref and runs
+ * a component's layout effects bottom-up (children before parents), so a
+ * *child* component's `useLayoutEffect` would run before the `<nav>` ref
+ * one level up ever gets attached, reading `containerRef.current` as still
+ * null on first mount. Hoisting the effect into the ancestor (`SiteHeader`)
+ * guarantees every descendant ref, including `<nav>`'s, is already attached
+ * by the time it runs.
+ */
+function useNavIndicatorRect(
+  containerRef: React.RefObject<HTMLElement | null>,
+  links: { href: string }[],
+  pathname: string
+) {
+  const [rect, setRect] = useState<{ left: number; width: number } | null>(
+    null
+  );
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const activeHref = links.find((l) => l.href === pathname)?.href;
+    if (!container || !activeHref) {
+      setRect(null);
+      return;
+    }
+
+    const measure = () => {
+      const el = container.querySelector<HTMLElement>(
+        `a[href="${activeHref}"]`
+      );
+      // offsetWidth is 0 for a `hidden` (display: none) link — the
+      // right-hand links collapse below `md`, and the indicator must never
+      // point at one that isn't actually visible.
+      if (!el || el.offsetWidth === 0) {
+        setRect(null);
+        return;
+      }
+      setRect({ left: el.offsetLeft, width: el.offsetWidth });
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [containerRef, pathname, links]);
+
+  return rect;
+}
+
+function NavIndicator({
+  rect,
+  reduceMotion,
+}: {
+  rect: { left: number; width: number } | null;
+  reduceMotion: boolean;
+}) {
+  if (!rect) return null;
+
+  return (
+    <m.span
+      className="pointer-events-none absolute bottom-[-4px] left-0 h-px bg-gold"
+      initial={false}
+      animate={{ x: rect.left, width: rect.width }}
+      transition={reduceMotion ? { duration: 0 } : SPRING.snappy}
+    />
+  );
+}
+
 export function SiteHeader() {
   const pathname = usePathname();
   const { count, ready } = useCart();
@@ -54,19 +150,15 @@ export function SiteHeader() {
   // fully static at its expanded size regardless of scroll position.
   const isCondensed = !shouldReduceMotion && condensed;
 
+  const leftNavRef = useRef<HTMLElement>(null);
+  const rightNavRef = useRef<HTMLDivElement>(null);
+  const leftIndicatorRect = useNavIndicatorRect(leftNavRef, LEFT_LINKS, pathname);
+  const rightIndicatorRect = useNavIndicatorRect(rightNavRef, RIGHT_LINKS, pathname);
+
   const linkCls = (href: string) =>
     cn(
-      "relative transition-colors hover:text-gold",
+      "transition-colors hover:text-gold",
       pathname === href ? "text-gold" : "text-cream/65"
-    );
-
-  const underline = (href: string) =>
-    pathname === href && (
-      <m.span
-        layoutId="nav-underline"
-        className="absolute -bottom-1 left-0 right-0 h-px bg-gold"
-        transition={SPRING.snappy}
-      />
     );
 
   return (
@@ -85,13 +177,16 @@ export function SiteHeader() {
           transition={SPRING.soft}
           className="hidden flex-1 origin-top md:block"
         >
-          <nav className="flex items-center gap-[26px] font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em]">
+          <nav
+            ref={leftNavRef}
+            className="relative flex items-center gap-[26px] font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em]"
+          >
             {LEFT_LINKS.map((l) => (
               <Link key={l.href} href={l.href} className={linkCls(l.href)}>
                 {l.label}
-                {underline(l.href)}
               </Link>
             ))}
+            <NavIndicator rect={leftIndicatorRect} reduceMotion={!!shouldReduceMotion} />
           </nav>
         </m.div>
 
@@ -138,7 +233,10 @@ export function SiteHeader() {
           transition={SPRING.soft}
           className="flex flex-1 origin-top items-center justify-end"
         >
-          <div className="flex items-center gap-[22px] font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em]">
+          <div
+            ref={rightNavRef}
+            className="relative flex items-center gap-[22px] font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em]"
+          >
             {RIGHT_LINKS.map((l) => (
               <Link
                 key={l.href}
@@ -146,19 +244,31 @@ export function SiteHeader() {
                 className={cn("hidden md:inline", linkCls(l.href))}
               >
                 {l.label}
-                {underline(l.href)}
               </Link>
             ))}
+            <NavIndicator rect={rightIndicatorRect} reduceMotion={!!shouldReduceMotion} />
             <Link href="/cart" className="text-gold">
               Bag (
               <span className="inline-block overflow-hidden align-bottom">
                 <AnimatePresence mode="popLayout" initial={false}>
                   <m.span
                     key={bag}
-                    initial={{ y: 12, opacity: 0 }}
+                    // `y` (positional/transform) is already forced instant by
+                    // MotionConfig's reducedMotion="user", but `opacity` is
+                    // not a positional key (see MotionProvider.tsx) and would
+                    // keep fading under prefers-reduced-motion: reduce unless
+                    // gated here — so under reduced motion the entering digit
+                    // starts and stays at its final {y:0, opacity:1}, and the
+                    // exiting digit's target is its own current values (no
+                    // visible fade) before AnimatePresence removes it.
+                    initial={shouldReduceMotion ? false : { y: 12, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -12, opacity: 0 }}
-                    transition={SPRING.snappy}
+                    exit={
+                      shouldReduceMotion
+                        ? { y: 0, opacity: 1 }
+                        : { y: -12, opacity: 0 }
+                    }
+                    transition={shouldReduceMotion ? { duration: 0 } : SPRING.snappy}
                     className="inline-block"
                   >
                     {bag}

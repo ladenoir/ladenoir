@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
 import { X } from "lucide-react";
 import { useCart } from "./cart-context";
@@ -28,6 +28,14 @@ export function CartDrawer() {
   const pathname = usePathname();
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
+
+  // MotionConfig's reducedMotion="user" (see MotionProvider.tsx) only forces
+  // *positional* keys (x, y, scale, width, …) instant under
+  // prefers-reduced-motion: reduce — `opacity` is not positional and would
+  // otherwise keep its full fade/stagger here. The drawer must still open
+  // and be usable under reduced motion, just without animating, so every
+  // opacity transition below is gated on this flag rather than removed.
+  const shouldReduceMotion = useReducedMotion();
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -78,9 +86,19 @@ export function CartDrawer() {
         <div className="fixed inset-0 z-50">
           <m.div
             className="absolute inset-0 bg-noir-deep"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.6, transition: { duration: DURATION.enter / 1000 } }}
-            exit={{ opacity: 0, transition: { duration: DURATION.exit / 1000 } }}
+            initial={shouldReduceMotion ? false : { opacity: 0 }}
+            animate={{
+              opacity: 0.6,
+              transition: shouldReduceMotion
+                ? { duration: 0 }
+                : { duration: DURATION.enter / 1000 },
+            }}
+            exit={{
+              opacity: 0,
+              transition: shouldReduceMotion
+                ? { duration: 0 }
+                : { duration: DURATION.exit / 1000 },
+            }}
             onClick={close}
           />
           <m.div
@@ -125,9 +143,15 @@ export function CartDrawer() {
                 items.map((i, idx) => (
                   <m.div
                     key={`${i.slug}::${i.size}`}
-                    initial={{ opacity: 0, x: 24 }}
+                    initial={
+                      shouldReduceMotion ? false : { opacity: 0, x: 24 }
+                    }
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ ...SPRING.soft, delay: 0.06 * idx }}
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0 }
+                        : { ...SPRING.soft, delay: 0.06 * idx }
+                    }
                     className="mb-4 flex gap-3 border-b border-gold/12 pb-4"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}

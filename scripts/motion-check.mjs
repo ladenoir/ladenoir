@@ -268,6 +268,130 @@ for (const vp of VIEWPORTS) {
   await ctx.close();
 }
 
+// ── Nav underline: positioned over the active link, moves on navigation ──
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+
+  // The active link ("Shop") sits in the left nav group; its indicator is a
+  // sibling <span> (not layoutId-based — see SiteHeader.tsx's NavIndicator)
+  // absolutely positioned inside the same <nav>.
+  const shopLink = page.locator('nav a[href="/shop"]');
+  const shopBox = await shopLink.boundingBox();
+  const indicator = page.locator('nav a[href="/shop"] ~ span.bg-gold').first();
+
+  const onShop = await indicator.boundingBox();
+  if (!shopBox || !onShop) {
+    fail("nav underline not found on /shop");
+  } else if (Math.abs(onShop.x - shopBox.x) > 4) {
+    fail(
+      `nav underline not aligned with active "/shop" link ` +
+        `(link x=${shopBox.x.toFixed(1)}, indicator x=${onShop.x.toFixed(1)})`
+    );
+  } else {
+    pass("nav underline is positioned over the active link on /shop");
+  }
+
+  await page.getByRole("link", { name: /^maison$/i }).first().click();
+  await page.waitForURL(/\/maison/, { timeout: 5000 });
+  await page.waitForTimeout(500);
+
+  const maisonLink = page.locator('nav a[href="/maison"]');
+  const maisonBox = await maisonLink.boundingBox();
+  const indicatorAfter = page
+    .locator('nav a[href="/maison"] ~ span.bg-gold')
+    .first();
+  const onMaison = await indicatorAfter.boundingBox();
+
+  if (!maisonBox || !onMaison) {
+    fail("nav underline not found on /maison after navigation");
+  } else if (Math.abs(onMaison.x - maisonBox.x) > 4) {
+    fail(
+      `nav underline did not move to "/maison" ` +
+        `(link x=${maisonBox.x.toFixed(1)}, indicator x=${onMaison.x.toFixed(1)})`
+    );
+  } else if (onShop && Math.abs(onMaison.x - onShop.x) < 4) {
+    fail("nav underline did not move between routes");
+  } else {
+    pass("nav underline moves to the active link after navigating to /maison");
+  }
+
+  await ctx.close();
+}
+
+// ── Reduced motion: cart drawer opens without fading ─────────────────────
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+
+  await page.locator("a[href^='/product/']").first().hover();
+  await page.getByRole("button", { name: /quick add/i }).first().click();
+
+  // Sample opacity almost immediately (well inside the ~210ms enter /
+  // ~450ms stagger window that would still be mid-fade under full motion)
+  // and again once everything would have long settled either way. Under
+  // reduced motion both samples must already read the final opacity.
+  await page.waitForTimeout(40);
+  const early = await page.evaluate(() => {
+    const backdrop = document.querySelector("[role='dialog']")?.previousElementSibling;
+    const item = document.querySelector("[role='dialog'] .mb-4");
+    return {
+      backdropOpacity: backdrop ? getComputedStyle(backdrop).opacity : null,
+      itemOpacity: item ? getComputedStyle(item).opacity : null,
+    };
+  });
+
+  await page.waitForTimeout(700);
+  const drawer = page.getByRole("dialog", { name: /your bag/i });
+  const opensUnderReducedMotion = await drawer.isVisible();
+  const late = await page.evaluate(() => {
+    const backdrop = document.querySelector("[role='dialog']")?.previousElementSibling;
+    const item = document.querySelector("[role='dialog'] .mb-4");
+    return {
+      backdropOpacity: backdrop ? getComputedStyle(backdrop).opacity : null,
+      itemOpacity: item ? getComputedStyle(item).opacity : null,
+    };
+  });
+
+  if (!opensUnderReducedMotion) {
+    fail("cart drawer did not open under prefers-reduced-motion: reduce");
+  } else {
+    pass("cart drawer still opens under prefers-reduced-motion: reduce");
+  }
+
+  // Backdrop's animate target is opacity: 0.6; an item's is opacity: 1.
+  // "Essentially immediately" = the early sample already matches the late
+  // (fully-settled) sample, rather than reading close to the initial 0.
+  const closeEnough = (a, b) => a !== null && b !== null && Math.abs(a - b) < 0.02;
+
+  if (!closeEnough(early.backdropOpacity, late.backdropOpacity)) {
+    fail(
+      `cart drawer backdrop still fading under reduced motion ` +
+        `(opacity at 40ms=${early.backdropOpacity}, settled=${late.backdropOpacity})`
+    );
+  } else {
+    pass("cart drawer backdrop reaches final opacity immediately under reduced motion");
+  }
+
+  if (!closeEnough(early.itemOpacity, late.itemOpacity)) {
+    fail(
+      `cart drawer item still fading/staggering under reduced motion ` +
+        `(opacity at 40ms=${early.itemOpacity}, settled=${late.itemOpacity})`
+    );
+  } else {
+    pass("cart drawer item reaches final opacity immediately under reduced motion (no stagger)");
+  }
+
+  await ctx.close();
+}
+
 await browser.close();
 
 if (failures.length) {
