@@ -392,6 +392,96 @@ for (const vp of VIEWPORTS) {
   await ctx.close();
 }
 
+// ── PDP interactions ─────────────────────────────────────────────
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.locator("a[href^='/product/']").first().click();
+  await page.waitForURL(/\/product\//);
+  await page.waitForTimeout(900);
+
+  // Selected size must be marked for assistive tech, not colour alone.
+  const sizeBtn = page.locator("button[aria-pressed]").first();
+  if ((await sizeBtn.count()) === 0) fail("size chips have no aria-pressed state");
+  else pass("size chips expose aria-pressed");
+
+  // Wishlist toggle must report its state.
+  const heart = page.getByRole("button", { name: /wishlist/i });
+  const pressedBefore = await heart.getAttribute("aria-pressed");
+  await heart.click();
+  await page.waitForTimeout(500);
+  const pressedAfter = await heart.getAttribute("aria-pressed");
+  if (pressedBefore === pressedAfter) fail("wishlist button aria-pressed does not change");
+  else pass("wishlist button toggles aria-pressed");
+
+  const cls = await measureCLS(page);
+  if (cls > 0) fail(`PDP CLS ${cls.toFixed(4)}`);
+  else pass("PDP CLS 0");
+
+  await page.screenshot({ path: join(OUT, "desktop_pdp_interactions.png"), fullPage: true });
+  await ctx.close();
+}
+
+// ── Reduced motion: PDP surfaces are fully static ────────────────────────
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.locator("a[href^='/product/']").first().click();
+  await page.waitForURL(/\/product\//);
+  await page.waitForTimeout(900);
+
+  // Add-to-bag label morph must not fade in/out under reduced motion. (The
+  // seed catalogue has no product with >1 gallery image, so the gallery
+  // crossfade itself can never be exercised end-to-end here — this exercises
+  // the same opacity-gated AnimatePresence swap pattern on a surface that's
+  // always present regardless of product data.)
+  // Located structurally (not by its text, which changes on click) so the
+  // locator keeps resolving after the label swaps to "Added to bag ✓".
+  const addBtn = page.locator("main button.flex-1");
+  await addBtn.click();
+  await page.waitForTimeout(30);
+  const early = await addBtn
+    .locator("span")
+    .first()
+    .evaluate((el) => getComputedStyle(el).opacity);
+  await page.waitForTimeout(400);
+  const late = await addBtn
+    .locator("span")
+    .first()
+    .evaluate((el) => getComputedStyle(el).opacity);
+  if (Math.abs(Number(early) - Number(late)) > 0.02) {
+    fail(
+      `PDP add-to-bag label still fading under prefers-reduced-motion: reduce ` +
+        `(opacity at 30ms=${early}, settled=${late})`
+    );
+  } else {
+    pass("PDP add-to-bag label reaches final opacity immediately under reduced motion");
+  }
+
+  // Adding to bag opens the cart drawer, which overlays the wishlist button
+  // below — close it first so the next click isn't intercepted.
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
+  // Wishlist particle burst must not render at all under reduced motion.
+  const heart = page.getByRole("button", { name: /wishlist/i });
+  await heart.click();
+  await page.waitForTimeout(300);
+  const particleCount = await page.locator(".wishlist-particle").count();
+  if (particleCount > 0) {
+    fail(`wishlist particle burst rendered ${particleCount} particles under reduced motion`);
+  } else {
+    pass("wishlist particle burst does not render under reduced motion");
+  }
+
+  await ctx.close();
+}
+
 await browser.close();
 
 if (failures.length) {

@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, ViewTransition } from "react";
+import { useLayoutEffect, useRef, useState, ViewTransition } from "react";
 import Link from "next/link";
+import { AnimatePresence, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
 import { useCart } from "@/components/store/cart-context";
 import { useWishlist } from "@/components/store/wishlist-context";
+import { SPRING, DURATION } from "@/lib/motion";
 import { formatINR, type Product } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +16,107 @@ const SPECS = [
   { k: "EDITION", v: "Limited run" },
   { k: "SHIPPING", v: "Free, 2–4 days" },
 ];
+
+/**
+ * Measured active-thumbnail indicator. `layoutId` is unavailable (MotionProvider
+ * uses `domAnimation`, not `domMax` — see MotionProvider.tsx), so this reads
+ * `offsetTop`/`offsetHeight` off the active thumbnail button (its untransformed
+ * layout box) the same way SiteHeader.tsx's `useNavIndicatorRect` measures the
+ * active nav link, and drives a single absolutely positioned `m.span` with a
+ * transform instead of relying on a shared layout animation. `top`/`height`
+ * are both Motion "positional" keys, so `MotionConfig reducedMotion="user"`
+ * already forces them instant under reduced motion with no extra gating.
+ */
+function useThumbIndicatorRect(
+  containerRef: React.RefObject<HTMLElement | null>,
+  activeIndex: number,
+  count: number
+) {
+  const [rect, setRect] = useState<{ top: number; height: number } | null>(
+    null
+  );
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      setRect(null);
+      return;
+    }
+
+    const measure = () => {
+      const el = container.querySelector<HTMLElement>(
+        `button[data-idx="${activeIndex}"]`
+      );
+      if (!el) {
+        setRect(null);
+        return;
+      }
+      setRect({ top: el.offsetTop, height: el.offsetHeight });
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [containerRef, activeIndex, count]);
+
+  return rect;
+}
+
+/**
+ * Measured sliding size-pill indicator. Same `layoutId`-replacement approach
+ * as the thumbnail indicator above, extended to two dimensions: the size
+ * chips sit in a `flex flex-wrap` row and can wrap onto a second line (and
+ * chip width varies with label length — "XXL" vs "S"), so the indicator
+ * needs `left`/`top`/`width`/`height` off the active chip, not just an x
+ * offset like SiteHeader's single-row nav underline. A wrapped layout is
+ * exactly what a plain x-only slide can't handle (the pill would cut a
+ * diagonal through unrelated rows), so this measures both axes and slides
+ * however the active chip actually moved — reading as intentional motion on
+ * a single row, and as a clean cross-row relocation when it wraps, rather
+ * than a blink either way.
+ */
+function useSizePillRect(
+  containerRef: React.RefObject<HTMLElement | null>,
+  activeSize: string,
+  count: number
+) {
+  const [rect, setRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      setRect(null);
+      return;
+    }
+
+    const measure = () => {
+      const el = container.querySelector<HTMLElement>(
+        `button[data-size="${activeSize}"]`
+      );
+      if (!el) {
+        setRect(null);
+        return;
+      }
+      setRect({
+        left: el.offsetLeft,
+        top: el.offsetTop,
+        width: el.offsetWidth,
+        height: el.offsetHeight,
+      });
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [containerRef, activeSize, count]);
+
+  return rect;
+}
 
 export function ProductDetail({ product }: { product: Product }) {
   const { add } = useCart();
@@ -26,6 +130,20 @@ export function ProductDetail({ product }: { product: Product }) {
 
   const wished = has(product.slug);
   const cat = product.category?.name ?? "";
+
+  // MotionConfig's reducedMotion="user" (see MotionProvider.tsx) only forces
+  // *positional* keys instant under prefers-reduced-motion: reduce — opacity
+  // is not positional and keeps its full transition. The gallery crossfade,
+  // button label morph, and wishlist particle burst below are all
+  // opacity-driven, so every one of them is gated on this flag, following
+  // the ProductCard.tsx / CartDrawer.tsx pattern.
+  const shouldReduceMotion = useReducedMotion();
+
+  const thumbColRef = useRef<HTMLDivElement>(null);
+  const thumbRect = useThumbIndicatorRect(thumbColRef, imgIdx, gallery.length);
+
+  const sizeRowRef = useRef<HTMLDivElement>(null);
+  const sizePillRect = useSizePillRect(sizeRowRef, size, sizes.length);
 
   const addToBag = () => {
     add(
@@ -56,20 +174,29 @@ export function ProductDetail({ product }: { product: Product }) {
       <div className="grid items-stretch lg:grid-cols-[1.35fr_1fr]">
         {/* gallery */}
         <div className="grid grid-cols-[64px_1fr] gap-4 px-[5vw] py-7 lg:pr-[2vw]">
-          <div className="flex flex-col gap-3">
+          <div ref={thumbColRef} className="relative flex flex-col gap-3">
+            {thumbRect && (
+              <m.span
+                className="pointer-events-none absolute left-0 z-10 w-16 border-2 border-gold"
+                style={{ height: thumbRect.height }}
+                initial={false}
+                animate={{ y: thumbRect.top }}
+                transition={shouldReduceMotion ? { duration: 0 } : SPRING.snappy}
+              />
+            )}
             {gallery.map((g, i) => (
               <button
                 key={i}
+                data-idx={i}
                 onClick={() => setImgIdx(i)}
-                className={cn(
-                  "aspect-[1/1.1] overflow-hidden border bg-noir-panel",
-                  i === imgIdx ? "border-gold" : "border-gold/20"
-                )}
+                aria-pressed={i === imgIdx}
+                aria-label={`View image ${i + 1}`}
+                className="relative aspect-[1/1.1] overflow-hidden border border-gold/20 bg-noir-panel"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={g}
-                  alt="view"
+                  alt=""
                   className="size-full object-cover contrast-[1.05] grayscale"
                 />
               </button>
@@ -77,12 +204,28 @@ export function ProductDetail({ product }: { product: Product }) {
           </div>
           <div className="relative aspect-[4/5] overflow-hidden border border-gold/15 bg-noir-panel">
             <ViewTransition name={`product-${product.slug}`} share="morph">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={gallery[imgIdx]}
-                alt={product.name}
-                className="absolute inset-0 size-full object-cover contrast-[1.04] grayscale-[0.15]"
-              />
+              <AnimatePresence initial={false}>
+                <m.img
+                  key={gallery[imgIdx]}
+                  src={gallery[imgIdx]}
+                  alt={product.name}
+                  initial={shouldReduceMotion ? false : { opacity: 0, scale: 1.02 }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                    transition: shouldReduceMotion
+                      ? { duration: 0 }
+                      : { duration: DURATION.enter / 1000 },
+                  }}
+                  exit={{
+                    opacity: shouldReduceMotion ? 1 : 0,
+                    transition: shouldReduceMotion
+                      ? { duration: 0 }
+                      : { duration: DURATION.exit / 1000 },
+                  }}
+                  className="absolute inset-0 size-full object-cover contrast-[1.04] grayscale-[0.15]"
+                />
+              </AnimatePresence>
             </ViewTransition>
             {product.tag && (
               <div className="absolute left-4 top-4 bg-gold px-2.5 py-[5px] font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-noir-deep">
@@ -119,34 +262,74 @@ export function ProductDetail({ product }: { product: Product }) {
           <div className="mb-3 font-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-cream/55">
             Size
           </div>
-          <div className="mb-[26px] flex flex-wrap gap-2.5">
+          <div
+            ref={sizeRowRef}
+            className="relative mb-[26px] flex flex-wrap gap-2.5"
+          >
+            {sizePillRect && (
+              <m.span
+                className="pointer-events-none absolute left-0 top-0 z-0 bg-gold"
+                style={{ width: sizePillRect.width, height: sizePillRect.height }}
+                initial={false}
+                animate={{ x: sizePillRect.left, y: sizePillRect.top }}
+                transition={shouldReduceMotion ? { duration: 0 } : SPRING.snappy}
+              />
+            )}
             {sizes.map((s) => {
               const on = s === size;
               return (
-                <button
+                <m.button
                   key={s}
+                  data-size={s}
                   onClick={() => setSize(s)}
+                  aria-pressed={on}
+                  whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
+                  transition={SPRING.snappy}
                   className={cn(
-                    "min-w-[52px] border py-3.5 font-mono text-xs font-semibold transition-all duration-200",
+                    "relative z-10 min-w-[52px] border py-3.5 font-mono text-xs font-semibold transition-colors duration-200",
                     on
-                      ? "border-gold bg-gold text-noir-deep"
+                      ? "border-gold text-noir-deep"
                       : "border-gold/30 text-cream/70 hover:border-gold/60"
                   )}
                 >
                   {s}
-                </button>
+                </m.button>
               );
             })}
           </div>
 
           <div className="mb-[18px] flex gap-3">
-            <button
+            <m.button
               onClick={addToBag}
-              className="flex-1 bg-gold p-[17px] font-mono text-xs font-bold uppercase tracking-[0.12em] text-noir-deep transition-colors hover:bg-cream"
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
+              transition={SPRING.snappy}
+              className="flex-1 overflow-hidden bg-gold p-[17px] font-mono text-xs font-bold uppercase tracking-[0.12em] text-noir-deep transition-colors hover:bg-cream"
             >
-              {added ? "Added to bag ✓" : `Add to bag — ${size}`}
-            </button>
-            <button
+              <AnimatePresence mode="wait" initial={false}>
+                <m.span
+                  key={added ? "added" : "idle"}
+                  initial={shouldReduceMotion ? false : { y: 10, opacity: 0 }}
+                  animate={{
+                    y: 0,
+                    opacity: 1,
+                    transition: shouldReduceMotion
+                      ? { duration: 0 }
+                      : { duration: DURATION.enter / 1000 },
+                  }}
+                  exit={{
+                    y: shouldReduceMotion ? 0 : -10,
+                    opacity: shouldReduceMotion ? 1 : 0,
+                    transition: shouldReduceMotion
+                      ? { duration: 0 }
+                      : { duration: DURATION.exit / 1000 },
+                  }}
+                  className="block"
+                >
+                  {added ? "Added to bag ✓" : `Add to bag — ${size}`}
+                </m.span>
+              </AnimatePresence>
+            </m.button>
+            <m.button
               onClick={() =>
                 toggle({
                   slug: product.slug,
@@ -156,16 +339,52 @@ export function ProductDetail({ product }: { product: Product }) {
                   category: cat,
                 })
               }
+              aria-pressed={wished}
+              aria-label="Toggle wishlist"
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.9 }}
+              transition={SPRING.snappy}
               className={cn(
-                "w-14 border text-lg transition-colors",
+                "relative w-14 border text-lg transition-colors",
                 wished
                   ? "border-gold bg-gold/15 text-gold"
                   : "border-gold/40 text-gold hover:bg-gold/10"
               )}
-              aria-label="Toggle wishlist"
             >
-              {wished ? "♥" : "♡"}
-            </button>
+              <m.span
+                key={wished ? "on" : "off"}
+                initial={shouldReduceMotion ? false : { scale: 0.7 }}
+                animate={{ scale: 1 }}
+                transition={shouldReduceMotion ? { duration: 0 } : SPRING.snappy}
+                className="inline-block"
+              >
+                {wished ? "♥" : "♡"}
+              </m.span>
+              {/* Particle burst is purely decorative flourish riding on
+                  opacity/translate — under reduced motion it is skipped
+                  entirely (not just made instant) so the wishlist toggle
+                  stays fully static, matching the project-wide "fully
+                  static under reduced motion" bar rather than resting on
+                  MotionConfig's positional-key instant-snap alone. */}
+              <AnimatePresence>
+                {!shouldReduceMotion &&
+                  wished &&
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <m.span
+                      key={i}
+                      className="wishlist-particle pointer-events-none absolute left-1/2 top-1/2 size-1 rounded-full bg-gold"
+                      initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+                      animate={{
+                        x: Math.cos((i / 6) * Math.PI * 2) * 26,
+                        y: Math.sin((i / 6) * Math.PI * 2) * 26,
+                        opacity: 0,
+                        scale: 0.4,
+                      }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: DURATION.hover / 1000, ease: "easeOut" }}
+                    />
+                  ))}
+              </AnimatePresence>
+            </m.button>
           </div>
           <Link
             href="/cart"
