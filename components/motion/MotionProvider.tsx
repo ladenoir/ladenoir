@@ -1,11 +1,21 @@
 "use client";
 
-import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
+import { LazyMotion, MotionConfig, domMax } from "motion/react";
 import type { ReactNode } from "react";
 
 /**
  * Mounted once in app/(store)/layout.tsx. Every animated component imports
- * `* as m from "motion/react-m"` so only domAnimation features ship.
+ * `* as m from "motion/react-m"` so features are pulled in lazily rather
+ * than via the full `motion` bundle (see eslint's no-restricted-imports).
+ *
+ * Uses `domMax` (animations + gestures + drag + layout), not the smaller
+ * `domAnimation`. The sliding nav underline in SiteHeader uses a shared
+ * `layoutId` so the indicator FLIP-animates between whichever link is
+ * active across navigations — that projection/measurement system lives in
+ * Motion's "layout" feature, which `domAnimation` does not include (see
+ * node_modules/framer-motion/dist/es/render/dom/features-{animation,max}.mjs).
+ * `domMax` also pulls in `drag`, unused today, as the two ship together;
+ * both remain behind LazyMotion so this doesn't touch the initial bundle.
  *
  * reducedMotion="user" makes Motion honor the OS-level
  * `prefers-reduced-motion: reduce` setting for every current and future
@@ -20,7 +30,7 @@ import type { ReactNode } from "react";
 export function MotionProvider({ children }: { children: ReactNode }) {
   return (
     <MotionConfig reducedMotion="user">
-      <LazyMotion features={domAnimation}>{children}</LazyMotion>
+      <LazyMotion features={domMax}>{children}</LazyMotion>
     </MotionConfig>
   );
 }
