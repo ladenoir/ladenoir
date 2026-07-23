@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import {
   AnimatePresence,
@@ -13,6 +13,7 @@ import {
 import * as m from "motion/react-m";
 import { useCart } from "./cart-context";
 import { SPRING } from "@/lib/motion";
+import { useMeasuredRect } from "@/lib/use-measured-rect";
 import { cn } from "@/lib/utils";
 
 const LEFT_LINKS = [
@@ -47,9 +48,14 @@ const CONDENSE_SCALE = 0.72;
  * the more sensible reading of "a bar that slides between active links in
  * the same group."
  *
- * Handles the `hidden md:inline` right-hand links: a link that's display:
- * none reports `offsetWidth === 0`, which this treats the same as "no match
- * in this group" — the indicator never renders pointing at a hidden link.
+ * The actual measurement — including re-measuring on container reflow
+ * (`ResizeObserver`) and on a late web-font swap (`document.fonts.ready`),
+ * not just `window` "resize" — lives in the shared `useMeasuredRect` hook
+ * (`lib/use-measured-rect.ts`), which also backs ProductDetail.tsx's
+ * thumbnail and size-pill indicators. It already treats a hidden
+ * (display: none, both dimensions 0) match the same as "no match" — the
+ * right-hand links collapsing below `md` — so the indicator never renders
+ * pointing at a link that isn't actually visible.
  *
  * `x`/`width` are both Motion "positional" keys
  * (node_modules/motion-dom/dist/es/render/utils/keys-position.mjs), so
@@ -72,38 +78,12 @@ function useNavIndicatorRect(
   links: { href: string }[],
   pathname: string
 ) {
-  const [rect, setRect] = useState<{ left: number; width: number } | null>(
-    null
+  const activeHref = links.find((l) => l.href === pathname)?.href ?? null;
+  return useMeasuredRect(
+    containerRef,
+    activeHref ? `a[href="${activeHref}"]` : null,
+    [pathname, links]
   );
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const activeHref = links.find((l) => l.href === pathname)?.href;
-    if (!container || !activeHref) {
-      setRect(null);
-      return;
-    }
-
-    const measure = () => {
-      const el = container.querySelector<HTMLElement>(
-        `a[href="${activeHref}"]`
-      );
-      // offsetWidth is 0 for a `hidden` (display: none) link — the
-      // right-hand links collapse below `md`, and the indicator must never
-      // point at one that isn't actually visible.
-      if (!el || el.offsetWidth === 0) {
-        setRect(null);
-        return;
-      }
-      setRect({ left: el.offsetLeft, width: el.offsetWidth });
-    };
-
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [containerRef, pathname, links]);
-
-  return rect;
 }
 
 function NavIndicator({

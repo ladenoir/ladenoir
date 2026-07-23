@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, ViewTransition } from "react";
+import { useRef, useState, ViewTransition } from "react";
 import Link from "next/link";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
@@ -8,6 +8,7 @@ import { useCart } from "@/components/store/cart-context";
 import { useWishlist } from "@/components/store/wishlist-context";
 import { SPRING, DURATION } from "@/lib/motion";
 import { formatINR, type Product } from "@/lib/types";
+import { useMeasuredRect } from "@/lib/use-measured-rect";
 import { cn } from "@/lib/utils";
 
 const SPECS = [
@@ -26,40 +27,21 @@ const SPECS = [
  * transform instead of relying on a shared layout animation. `top`/`height`
  * are both Motion "positional" keys, so `MotionConfig reducedMotion="user"`
  * already forces them instant under reduced motion with no extra gating.
+ *
+ * The measurement itself — including re-measuring on container reflow, not
+ * just `window` "resize" — lives in the shared `useMeasuredRect` hook
+ * (`lib/use-measured-rect.ts`, also used by `useSizePillRect` below and by
+ * SiteHeader's `useNavIndicatorRect`).
  */
 function useThumbIndicatorRect(
   containerRef: React.RefObject<HTMLElement | null>,
   activeIndex: number,
   count: number
 ) {
-  const [rect, setRect] = useState<{ top: number; height: number } | null>(
-    null
-  );
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) {
-      setRect(null);
-      return;
-    }
-
-    const measure = () => {
-      const el = container.querySelector<HTMLElement>(
-        `button[data-idx="${activeIndex}"]`
-      );
-      if (!el) {
-        setRect(null);
-        return;
-      }
-      setRect({ top: el.offsetTop, height: el.offsetHeight });
-    };
-
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [containerRef, activeIndex, count]);
-
-  return rect;
+  return useMeasuredRect(containerRef, `button[data-idx="${activeIndex}"]`, [
+    activeIndex,
+    count,
+  ]);
 }
 
 /**
@@ -73,49 +55,20 @@ function useThumbIndicatorRect(
  * diagonal through unrelated rows), so this measures both axes and slides
  * however the active chip actually moved — reading as intentional motion on
  * a single row, and as a clean cross-row relocation when it wraps, rather
- * than a blink either way.
+ * than a blink either way. A wrap is also exactly the kind of layout change
+ * `useMeasuredRect`'s `ResizeObserver` on the container exists to catch:
+ * wrapping changes the row's own height, which is a content reflow with no
+ * `window` "resize" event anywhere in sight.
  */
 function useSizePillRect(
   containerRef: React.RefObject<HTMLElement | null>,
   activeSize: string,
   count: number
 ) {
-  const [rect, setRect] = useState<{
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  } | null>(null);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) {
-      setRect(null);
-      return;
-    }
-
-    const measure = () => {
-      const el = container.querySelector<HTMLElement>(
-        `button[data-size="${activeSize}"]`
-      );
-      if (!el) {
-        setRect(null);
-        return;
-      }
-      setRect({
-        left: el.offsetLeft,
-        top: el.offsetTop,
-        width: el.offsetWidth,
-        height: el.offsetHeight,
-      });
-    };
-
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [containerRef, activeSize, count]);
-
-  return rect;
+  return useMeasuredRect(containerRef, `button[data-size="${activeSize}"]`, [
+    activeSize,
+    count,
+  ]);
 }
 
 export function ProductDetail({ product }: { product: Product }) {

@@ -402,11 +402,32 @@ for (const vp of VIEWPORTS) {
   await page.waitForTimeout(900);
 
   // Selected size must be marked for assistive tech, not colour alone.
-  const sizeBtn = page.locator("button[aria-pressed]").first();
-  if ((await sizeBtn.count()) === 0) fail("size chips have no aria-pressed state");
+  // Scoped to `button[data-size]` (the size chips — see ProductDetail.tsx)
+  // rather than `button[aria-pressed]` generally: the gallery thumbnails
+  // also carry aria-pressed and sit earlier in DOM order, so a plain
+  // `.first()` over "any button with aria-pressed" would silently match a
+  // thumbnail and pass even if the size chips themselves had no
+  // aria-pressed at all. Comparing the count of size chips to the count of
+  // size chips that also carry aria-pressed catches that: every chip must
+  // have it, not just whichever button happens to come first in the DOM.
+  const sizeChipCount = await page.locator("button[data-size]").count();
+  const sizeChipsWithAriaPressed = await page
+    .locator("button[data-size][aria-pressed]")
+    .count();
+  if (sizeChipCount === 0 || sizeChipsWithAriaPressed !== sizeChipCount)
+    fail(
+      `size chips have no aria-pressed state (${sizeChipsWithAriaPressed}/${sizeChipCount} chips carry it)`
+    );
   else pass("size chips expose aria-pressed");
 
-  // Wishlist toggle must report its state.
+  // Wishlist toggle must report its state. This one is scoped by accessible
+  // name (aria-label="Toggle wishlist" is unique on the page — the gallery
+  // thumbnails' aria-labels are "View image N"), not by DOM position, and it
+  // asserts the value actually flips rather than merely existing — so it
+  // doesn't share the size-chip locator's "first matching button, whatever
+  // that happens to be" problem: getByRole would only start matching the
+  // wrong button if some other button's accessible name also contained
+  // "wishlist", which is not the case here.
   const heart = page.getByRole("button", { name: /wishlist/i });
   const pressedBefore = await heart.getAttribute("aria-pressed");
   await heart.click();
@@ -420,6 +441,105 @@ for (const vp of VIEWPORTS) {
   else pass("PDP CLS 0");
 
   await page.screenshot({ path: join(OUT, "desktop_pdp_interactions.png"), fullPage: true });
+  await ctx.close();
+}
+
+// ── Size pill indicator follows non-viewport reflow ──────────────────────
+// useSizePillRect (and its siblings useNavIndicatorRect / useThumbIndicatorRect)
+// must re-measure on any layout change to the element they track, not just on
+// a `window` "resize" event — the realistic case that misses is a late
+// web-font swap, which changes glyph metrics without ever firing `resize`.
+// This forces a deterministic, non-resize layout change (narrowing the size
+// row so the active chip wraps onto a second line) and confirms the pill
+// follows it without a `resize` event ever being dispatched, proving the
+// underlying mechanism (ResizeObserver on the container) is what caught it —
+// not the old resize listener, which this test never triggers.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.locator("a[href^='/product/']").first().click();
+  await page.waitForURL(/\/product\//);
+  await page.waitForTimeout(900);
+
+  // The size row is the only `div` on the PDP with a direct `button[data-size]`
+  // child; the pill indicator is the sole `span.bg-gold` inside it.
+  const sizeRow = page.locator("div:has(> button[data-size])");
+  const chips = page.locator("button[data-size]");
+  const chipCount = await chips.count();
+  if (chipCount < 2) {
+    fail("PDP needs at least 2 size chips to exercise the reflow assertion");
+  } else {
+    // Select the LAST chip so narrowing the row is guaranteed to move it
+    // onto a new wrapped row (rather than possibly staying put on row 1).
+    const lastChip = chips.nth(chipCount - 1);
+    await lastChip.click();
+    await page.waitForTimeout(400); // let the initial (correct) slide settle
+
+    const indicator = sizeRow.locator("span.bg-gold").first();
+    const rowBefore = await sizeRow.boundingBox();
+    const chipBeforeBox = await lastChip.boundingBox();
+
+    // Mutate the row's own layout box directly — no window resize event
+    // involved — forcing the chips to wrap. This is the "content reflow
+    // that isn't a viewport resize" the finding describes; a late web-font
+    // swap is the realistic real-world trigger, but this is a deterministic
+    // stand-in for CI.
+    await sizeRow.evaluate((el) => {
+      el.style.maxWidth = "150px";
+    });
+    await page.waitForTimeout(400); // ResizeObserver callback + re-render
+
+    const rowAfter = await sizeRow.boundingBox();
+    const after = await indicator.boundingBox();
+    const chipBox = await lastChip.boundingBox();
+
+    if (!rowBefore || !chipBeforeBox || !rowAfter || !after || !chipBox) {
+      fail("could not measure size pill indicator for reflow assertion");
+    } else if (rowAfter.height <= rowBefore.height + 4) {
+      fail(
+        `size row did not actually wrap onto a new line (height before=${rowBefore.height.toFixed(1)}, after=${rowAfter.height.toFixed(1)}) — reflow assertion is not exercising anything`
+      );
+    } else {
+      // Compare positions RELATIVE to the row container, not raw viewport
+      // coordinates: the info column is `flex flex-col justify-center`, so
+      // the row wrapping onto a second line changes the row's *own* height,
+      // which re-centers the whole column and shifts the container's
+      // viewport position too. That ancestor shift would move the
+      // indicator's viewport coordinates right along with it even if the
+      // indicator's own transform never re-measured — a false "it moved"
+      // signal that has nothing to do with whether our fix works. Container-
+      // relative coordinates cancel that out and isolate what we actually
+      // care about: does the indicator's offset *within its own container*
+      // track the active chip's offset within that same container.
+      const chipRel = {
+        x: chipBox.x - rowAfter.x,
+        y: chipBox.y - rowAfter.y,
+      };
+      const indicatorRel = {
+        x: after.x - rowAfter.x,
+        y: after.y - rowAfter.y,
+      };
+      const aligned =
+        Math.abs(indicatorRel.x - chipRel.x) <= 4 &&
+        Math.abs(indicatorRel.y - chipRel.y) <= 4;
+      if (!aligned) {
+        fail(
+          `size pill indicator did not follow non-viewport reflow (row wrapped onto a new line, no window resize event fired, but indicator's position relative to its container is ${JSON.stringify(indicatorRel)} while the active chip's is ${JSON.stringify(chipRel)})`
+        );
+      } else {
+        pass(
+          "size pill indicator follows non-viewport reflow (wrap forced without a resize event) and stays aligned with the active chip"
+        );
+      }
+    }
+
+    // Undo the mutation so it can't affect any later assertion order changes.
+    await sizeRow.evaluate((el) => {
+      el.style.maxWidth = "";
+    });
+  }
+
   await ctx.close();
 }
 
