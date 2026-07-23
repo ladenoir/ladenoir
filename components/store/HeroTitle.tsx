@@ -1,6 +1,6 @@
 "use client";
 
-import { DURATION, EASE, STAGGER } from "@/lib/motion";
+import { DURATION, EASE, LETTER_STAGGER } from "@/lib/motion";
 import { useReducedMotionPref } from "@/components/motion/useReducedMotionPref";
 
 // Precomposed U+00C8 (LATIN CAPITAL LETTER E WITH GRAVE), not "E" + a
@@ -23,6 +23,15 @@ const WORD = [..."PANTHÈRE"];
  * — reduced motion, or any other reason — the letters are simply sitting in
  * their final, fully readable position from the first frame. There is no
  * "stuck invisible" state to fall into.
+ *
+ * The offset is NOT set inline — the `ldn-letter-rise` keyframe (see
+ * app/globals.css) owns both endpoints (`from: translateY(110%)` /
+ * `to: translateY(0)`), and `animation-fill-mode: both` is what makes the
+ * pre-start state match the keyframe's `from`. That means the readable
+ * position (no transform) is the element's natural, un-animated default: if
+ * the keyframe is ever renamed or removed, there is no matching animation to
+ * apply, and the letter simply stays at its default, fully visible position
+ * instead of stuck at the old inline `translateY(110%)`.
  */
 export function HeroTitle() {
   const reduced = useReducedMotionPref();
@@ -45,12 +54,7 @@ export function HeroTitle() {
               reduced
                 ? undefined
                 : {
-                    transform: "translateY(110%)",
-                    // 900ms: DURATION has no named token for a one-shot
-                    // decorative hero reveal, so this derives from the
-                    // slowest existing token (DURATION.hover) rather than
-                    // introducing a bare literal — see lib/motion.ts.
-                    animation: `ldn-letter-rise ${DURATION.hover * 2}ms ${EASE.out} ${STAGGER * i}ms forwards`,
+                    animation: `ldn-letter-rise ${DURATION.heroReveal}ms ${EASE.out} ${LETTER_STAGGER * i}ms both`,
                   }
             }
           >

@@ -648,6 +648,77 @@ for (const vp of VIEWPORTS) {
   await ctx.close();
 }
 
+// ── Reduced motion: hero letter-rise animation does not run ─────────────
+// The opacity sweep above cannot catch this: the letter reveal animates
+// `transform`, not `opacity`, so a hero with its reduced-motion gate
+// completely removed would still pass that check. Read the CSS
+// `animation-name` directly off a letter span instead — under
+// `reducedMotion: "reduce"`, HeroTitle must render the span with no inline
+// `animation` at all, so the computed animation-name is the CSS default
+// "none". If the gate is missing, the inline `ldn-letter-rise ...` animation
+// is present regardless of the OS/browser preference and this reads back
+// "ldn-letter-rise" instead.
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+
+  const animationName = await page
+    .locator("h1 span[data-letter] span")
+    .first()
+    .evaluate((el) => getComputedStyle(el).animationName);
+
+  if (animationName !== "none")
+    fail(
+      `hero letter animation-name is "${animationName}" under prefers-reduced-motion: reduce, ` +
+        `expected "none" (HeroTitle's reduced-motion gate is not suppressing the CSS animation)`
+    );
+  else
+    pass(
+      "hero letter animation is suppressed (animation-name: none) under prefers-reduced-motion: reduce"
+    );
+
+  await ctx.close();
+}
+
+// ── Reduced motion: hero parallax transform does not move on scroll ─────
+// The opacity sweep above also cannot catch this: the parallax animates
+// `transform` via a MotionValue outside any `animate` prop, and the sweep
+// never scrolls. Read the computed `transform` on the hero image's parallax
+// wrapper (`[data-hero-image-wrapper]`, the `m.div` HeroImage drives with
+// `y` — see components/store/HeroImage.tsx), scroll the page, and read it
+// again. Under `reducedMotion: "reduce"` the two reads must be identical;
+// if HeroImage's `shouldReduceMotion` gate were removed, scrolling would
+// change scrollYProgress and therefore `y`, and this would catch that.
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+
+  const wrapper = page.locator("[data-hero-image-wrapper]");
+  const before = await wrapper.evaluate((el) => getComputedStyle(el).transform);
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(500);
+  const after = await wrapper.evaluate((el) => getComputedStyle(el).transform);
+
+  if (before !== after)
+    fail(
+      `hero parallax transform changed under prefers-reduced-motion: reduce ` +
+        `(before=${before}, after=${after}) — HeroImage's reduced-motion gate is not suppressing the scroll-driven transform`
+    );
+  else pass("hero parallax transform unchanged after scrolling under prefers-reduced-motion: reduce");
+
+  await ctx.close();
+}
+
 await browser.close();
 
 if (failures.length) {

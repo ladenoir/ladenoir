@@ -24,6 +24,8 @@ export const DURATION = {
   /** shared-element flight */
   morph: 400,
   hover: 450,
+  /** one-shot hero wordmark letter-rise reveal, triggered on mount */
+  heroReveal: 900,
 } as const;
 
 export const SPRING = {
@@ -33,3 +35,6 @@ export const SPRING = {
 
 /** per-index stagger for scroll reveals, ms */
 export const STAGGER = 90;
+
+/** per-letter stagger for the hero wordmark's mount-triggered reveal, ms */
+export const LETTER_STAGGER = 60;

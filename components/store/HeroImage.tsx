@@ -31,7 +31,11 @@ export function HeroImage({ src, alt }: { src: string; alt: string }) {
 
   return (
     <div ref={ref} className="absolute inset-0">
-      <m.div style={{ y: shouldReduceMotion ? 0 : y }} className="absolute inset-0">
+      <m.div
+        data-hero-image-wrapper
+        style={{ y: shouldReduceMotion ? 0 : y }}
+        className="absolute inset-0"
+      >
         <Image
           src={src}
           alt={alt}
