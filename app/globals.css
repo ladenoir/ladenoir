@@ -239,7 +239,8 @@ input::placeholder {
   }
   ::view-transition-group(*),
   ::view-transition-old(*),
-  ::view-transition-new(*) {
+  ::view-transition-new(*),
+  ::view-transition-image-pair(*) {
     animation: none !important;
   }
 }

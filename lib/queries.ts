@@ -62,11 +62,13 @@ export async function getFeaturedProducts(limit = 6): Promise<Product[]> {
  *
  * Revalidation: `revalidate: 60` bounds staleness to at most one minute
  * (each entry is independently keyed by `slug`, via unstable_cache's
- * automatic argument-based cache key). The `"products"` tag is exposed for
- * on-demand invalidation (`revalidateTag("products")`/`updateTag`) once an
- * admin edit/delete flow exists — today only product *creation* exists
- * (`app/admin/products/new/actions.ts`), which can't make an already-cached
- * product stale since the product didn't exist yet. This uses a
+ * automatic argument-based cache key). The `"products"` tag is invalidated
+ * on-demand via `updateTag("products")` in `app/admin/products/new/actions.ts`
+ * after a successful create — today that's a no-op in practice (a brand-new
+ * product can't already be sitting stale in the cache), but it's there so
+ * the tag is already wired the moment an edit/delete flow reuses this same
+ * cache, rather than silently serving stale PDPs for up to 60s until
+ * someone notices. This uses a
  * cookie-free `createPublicClient()` (see `lib/supabase/public.ts`) because
  * `unstable_cache` scopes cannot call the runtime-only `cookies()` API that
  * the request-scoped Supabase client depends on.

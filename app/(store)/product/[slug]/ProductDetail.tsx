@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, ViewTransition } from "react";
+import { useEffect, useRef, useState, ViewTransition } from "react";
 import Link from "next/link";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
@@ -80,6 +80,11 @@ export function ProductDetail({ product }: { product: Product }) {
   const [imgIdx, setImgIdx] = useState(0);
   const [size, setSize] = useState(sizes[Math.min(1, sizes.length - 1)]);
   const [added, setAdded] = useState(false);
+  // Fires the particle burst. Deliberately NOT derived from `wished` itself
+  // (see below) — only ever set by the click handler, so it can never be
+  // true on a render caused by hydration syncing localStorage state.
+  const [wishBurst, setWishBurst] = useState(false);
+  const wishBurstTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const wished = has(product.slug);
   const cat = product.category?.name ?? "";
@@ -97,6 +102,15 @@ export function ProductDetail({ product }: { product: Product }) {
 
   const sizeRowRef = useRef<HTMLDivElement>(null);
   const sizePillRect = useSizePillRect(sizeRowRef, size, sizes.length);
+
+  // Clear any pending burst-off timer on unmount so navigating away mid-
+  // burst (e.g. clicking wishlist then immediately leaving the PDP) can't
+  // fire a setState after the component is gone.
+  useEffect(() => {
+    return () => {
+      if (wishBurstTimeout.current) clearTimeout(wishBurstTimeout.current);
+    };
+  }, []);
 
   const addToBag = () => {
     add(
@@ -283,15 +297,33 @@ export function ProductDetail({ product }: { product: Product }) {
               </AnimatePresence>
             </m.button>
             <m.button
-              onClick={() =>
+              onClick={() => {
+                const adding = !wished;
                 toggle({
                   slug: product.slug,
                   name: product.name,
                   price: product.price_inr,
                   image: product.image_url ?? "",
                   category: cat,
-                })
-              }
+                });
+                // Particles are for the add *action* only. `wished` also
+                // flips false -> true on the render right after hydration
+                // syncs an already-wishlisted product in from localStorage
+                // (see wishlist-context.tsx's `ready` flag) — keying the
+                // burst off that transition directly would fire it on
+                // every page load of an already-wishlisted PDP. Setting a
+                // dedicated flag only from inside this click handler means
+                // it is structurally impossible for hydration to trigger
+                // it: this code only runs on an actual user click.
+                if (adding && !shouldReduceMotion) {
+                  if (wishBurstTimeout.current) clearTimeout(wishBurstTimeout.current);
+                  setWishBurst(true);
+                  wishBurstTimeout.current = setTimeout(
+                    () => setWishBurst(false),
+                    DURATION.hover + 50
+                  );
+                }
+              }}
               aria-pressed={wished}
               aria-label="Toggle wishlist"
               whileTap={shouldReduceMotion ? undefined : { scale: 0.9 }}
@@ -317,10 +349,17 @@ export function ProductDetail({ product }: { product: Product }) {
                   entirely (not just made instant) so the wishlist toggle
                   stays fully static, matching the project-wide "fully
                   static under reduced motion" bar rather than resting on
-                  MotionConfig's positional-key instant-snap alone. */}
+                  MotionConfig's positional-key instant-snap alone.
+
+                  Gated on `wishBurst`, not `wished`: `wished` also becomes
+                  true on the hydration-driven render (localStorage syncing
+                  in on an already-wishlisted product), which AnimatePresence
+                  would otherwise read as "appeared" and burst on every visit.
+                  `wishBurst` is only ever set inside the click handler above,
+                  so it can't fire from that render. */}
               <AnimatePresence>
                 {!shouldReduceMotion &&
-                  wished &&
+                  wishBurst &&
                   Array.from({ length: 6 }).map((_, i) => (
                     <m.span
                       key={i}

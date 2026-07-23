@@ -10,6 +10,35 @@ import { useCart } from "./cart-context";
 import { SPRING, DURATION } from "@/lib/motion";
 import { formatINR } from "@/lib/types";
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Marks every sibling subtree between `root` and `document.body` as inert
+ * (or clears that marking) — i.e. the whole rest of the page, at every
+ * level, excluding only the ancestor chain that leads to `root`. `inert`
+ * both removes those elements from the Tab order and hides them from
+ * assistive tech, which is what actually backs the drawer's
+ * `aria-modal="true"` claim (previously nothing did — Tab could still
+ * escape into the page behind it). Walking the live ancestor chain rather
+ * than assuming a fixed DOM shape means this keeps working even if
+ * StoreLayout's tree around <CartDrawer /> changes later.
+ */
+function setBackgroundInert(root: HTMLElement | null, inert: boolean) {
+  let node: HTMLElement | null = root;
+  while (node && node !== document.body) {
+    const parent: HTMLElement | null = node.parentElement;
+    if (parent) {
+      for (const sibling of Array.from(parent.children)) {
+        if (sibling !== node && sibling instanceof HTMLElement) {
+          sibling.toggleAttribute("inert", inert);
+        }
+      }
+    }
+    node = parent;
+  }
+}
+
 /**
  * Confirmation surface for cart additions. Previously `add()` mutated state
  * with no visible feedback. /cart remains the canonical full bag view.
@@ -21,12 +50,22 @@ import { formatINR } from "@/lib/types";
  * "Quick add" button) via restoreTo.current — captured at the moment the
  * add-event fires, before setOpen(true) runs, so it always points at the
  * element the user actually interacted with.
+ *
+ * `aria-modal="true"` is only true if something actually backs it: while
+ * open, `setBackgroundInert` marks the rest of the page `inert` (removes it
+ * from both the Tab order and the accessibility tree), and the Tab handler
+ * below additionally wraps focus from the panel's last focusable element
+ * back to its first (and Shift+Tab from first to last) — belt-and-braces,
+ * since `inert` alone doesn't guarantee wraparound when, as here, the
+ * drawer happens to be the last element in DOM order and there's nothing
+ * after it for the browser to hand focus to natively.
  */
 export function CartDrawer() {
   const { items, subtotal, onAdd, remove } = useCart();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const panelRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
 
   // MotionConfig's reducedMotion="user" (see MotionProvider.tsx) only forces
@@ -61,29 +100,67 @@ export function CartDrawer() {
     if (open) setOpen(false);
   }
 
-  // escape, focus move-in, focus restore, scroll lock
+  // escape, focus move-in, focus trap (Tab wraparound + inert background),
+  // focus restore, scroll lock
   useEffect(() => {
     if (!open) {
       restoreTo.current?.focus?.();
       return;
     }
+    // Snapshot now, not read fresh inside the cleanup: by the time cleanup
+    // runs (open -> false), rootRef.current may already differ (React can
+    // clear the ref before the effect teardown for an AnimatePresence exit),
+    // so the node this effect actually marked inert must be captured here.
+    const root = rootRef.current;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") {
+        close();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      );
+      if (focusable.length === 0) {
+        // Nothing to wrap between — keep focus pinned on the panel itself
+        // rather than letting Tab fall through to the (inert) background.
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey) {
+        if (active === first || !panel.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (active === last || !panel.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    setBackgroundInert(root, true);
     panelRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
+      setBackgroundInert(root, false);
     };
   }, [open, close]);
 
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50">
+        <div ref={rootRef} className="fixed inset-0 z-50">
           <m.div
             className="absolute inset-0 bg-noir-deep"
             initial={shouldReduceMotion ? false : { opacity: 0 }}

@@ -18,18 +18,43 @@ const MotionLink = m.create(Link);
 
 const claimed = new Set<string>();
 
+declare global {
+  interface Window {
+    /** See useMorphNameGuard below — read by scripts/motion-check.mjs. */
+    __ldnMorphDuplicates?: string[];
+  }
+}
+
 /**
  * A viewTransitionName must be unique per document. Two cards claiming the
  * same product silently breaks the morph, so shout about it in development.
+ *
+ * This is the *reliable* place to catch that, not a live DOM scan for two
+ * elements simultaneously bearing the same `view-transition-name`: the
+ * browser's View Transition implementation never actually lets that state
+ * exist observably — when two nodes race to claim one name, only one of
+ * them ever gets the live inline style at any sampled instant (confirmed
+ * empirically — see scripts/motion-check.mjs's duplicate-name check and its
+ * comment), so polling the DOM during a transition can't reliably detect
+ * this bug. This module-level `claimed` Set, by contrast, is a synchronous
+ * bookkeeping check at mount time that sees the collision unconditionally —
+ * so it also runs (silently, no console noise) outside development, pushing
+ * onto `window.__ldnMorphDuplicates` so an automated check can read it back
+ * deterministically instead of racing a transition.
  */
 function useMorphNameGuard(slug: string, active: boolean) {
   useEffect(() => {
-    if (!active || process.env.NODE_ENV === "production") return;
+    if (!active) return;
     if (claimed.has(slug)) {
-      console.error(
-        `[ldn/motion] Two ProductCards claim morph name "product-${slug}". ` +
-          `Only one grid per page may pass morph.`
-      );
+      if (process.env.NODE_ENV !== "production") {
+        console.error(
+          `[ldn/motion] Two ProductCards claim morph name "product-${slug}". ` +
+            `Only one grid per page may pass morph.`
+        );
+      }
+      if (typeof window !== "undefined") {
+        (window.__ldnMorphDuplicates ??= []).push(slug);
+      }
     }
     claimed.add(slug);
     return () => {

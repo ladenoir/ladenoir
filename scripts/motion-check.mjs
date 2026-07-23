@@ -118,8 +118,18 @@ for (const vp of VIEWPORTS) {
   await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
 
-  // Exactly one element may claim each product's morph name.
-  const dupes = await page.evaluate(() => {
+  // At rest (no transition in flight), React only leaves a live
+  // `view-transition-name` inline style on the four hand-written chrome
+  // names (header/marquee/footer/shop-grid) — the per-product `product-*`/
+  // `ptitle-*` names ProductCard.tsx assigns via <ViewTransition name> are
+  // NOT present here. This scan still catches a real class of bug — two
+  // *static* elements claiming the same name outside any transition — so it
+  // stays, just under a name that doesn't overclaim what it covers. Product-
+  // name duplication is checked separately below via
+  // window.__ldnMorphDuplicates, not by scanning the DOM for it (see that
+  // check's comment for why a DOM scan — at rest or during a transition —
+  // structurally can't catch it).
+  const dupesAtRest = await page.evaluate(() => {
     const names = [...document.querySelectorAll("[style*='view-transition-name']")]
       .map((el) => el.style.viewTransitionName)
       .filter(Boolean);
@@ -131,8 +141,33 @@ for (const vp of VIEWPORTS) {
     }
     return [...dup];
   });
-  if (dupes.length) fail(`duplicate view-transition-name on /shop: ${dupes.join(", ")}`);
-  else pass("no duplicate view-transition-name on /shop");
+  if (dupesAtRest.length)
+    fail(`duplicate view-transition-name on /shop at rest: ${dupesAtRest.join(", ")}`);
+  else pass("no duplicate view-transition-name on /shop at rest (static chrome names)");
+
+  // Duplicate product-*/ptitle-* claims: NOT checked by scanning the DOM
+  // (at rest or mid-transition) for two elements sharing a
+  // `view-transition-name`. Empirically (see scratch investigation in the
+  // task-6 report), when two ProductCards claim the same product-* name,
+  // the browser's View Transition implementation never lets both carry the
+  // live inline style at the same sampled instant — only one of the two
+  // ever does, at any point during the transition — so a DOM poll for a
+  // literal duplicate string can pass even when a real collision exists.
+  // ProductCard.tsx's `useMorphNameGuard` catches the collision the
+  // reliable way instead: synchronous bookkeeping in a module-level Set at
+  // mount time, which sees every claim unconditionally (no transition
+  // timing to race), and now records it to `window.__ldnMorphDuplicates`
+  // in every environment (not just dev, where it's also console.error'd)
+  // specifically so this script can read it back deterministically.
+  const morphDuplicates = await page.evaluate(() => window.__ldnMorphDuplicates ?? []);
+  if (morphDuplicates.length) {
+    fail(
+      `duplicate product-* morph name claim(s) on /shop: ${morphDuplicates.join(", ")} ` +
+        `(ProductCard.tsx's useMorphNameGuard caught two cards claiming the same product)`
+    );
+  } else {
+    pass("no duplicate product-*/ptitle-* morph name claims on /shop");
+  }
 
   // Header must be anchored so it cannot slide during navigation.
   const anchored = await page.evaluate(() => {
@@ -255,6 +290,74 @@ for (const vp of VIEWPORTS) {
   });
   if (!focusInside) fail("focus is not inside the open drawer");
   else pass("focus moves into the drawer");
+
+  // Real focus trap, not just "focus happens to be inside right now": the
+  // background must be `inert` (this is what actually backs the
+  // aria-modal="true" claim — a screen reader's virtual cursor, not just
+  // Tab, must not reach it either), and Tab must cycle strictly within the
+  // dialog's own focusable elements rather than escaping into the page
+  // behind it once it runs past the last one.
+  const backgroundInert = await page.evaluate(() => {
+    const header = document.querySelector("header");
+    const main = document.querySelector("main");
+    return {
+      header: header ? header.inert : null,
+      main: main ? main.inert : null,
+    };
+  });
+  if (!backgroundInert.header || !backgroundInert.main) {
+    fail(
+      `cart drawer open but background is not inert (header.inert=${backgroundInert.header}, ` +
+        `main.inert=${backgroundInert.main}) — aria-modal="true" is not backed by a real trap`
+    );
+  } else {
+    pass("background is inert while the cart drawer is open");
+  }
+
+  const focusableCount = await page.evaluate(() => {
+    const d = document.querySelector("[role='dialog']");
+    if (!d) return 0;
+    return d.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ).length;
+  });
+  if (focusableCount === 0) {
+    fail("cart drawer has no focusable elements to trap focus among");
+  } else {
+    // Tab through more presses than the drawer contains focusable elements
+    // — enough to lap the trap at least twice — so a trap that merely
+    // delays escape (e.g. only guards the very first Tab) still gets
+    // caught, not just one that never guards at all.
+    const pressCount = focusableCount * 2 + 4;
+    let escapedAfter = -1;
+    for (let i = 0; i < pressCount; i++) {
+      await page.keyboard.press("Tab");
+      const inside = await page.evaluate(() => {
+        const d = document.querySelector("[role='dialog']");
+        return (
+          !!d &&
+          document.activeElement !== document.body &&
+          document.activeElement !== null &&
+          d.contains(document.activeElement)
+        );
+      });
+      if (!inside) {
+        escapedAfter = i + 1;
+        break;
+      }
+    }
+    if (escapedAfter !== -1) {
+      fail(
+        `cart drawer focus trap does not hold: Tab moved focus outside the dialog after ` +
+          `${escapedAfter} press(es) (dialog has ${focusableCount} focusable elements)`
+      );
+    } else {
+      pass(
+        `cart drawer traps Tab focus across ${pressCount} presses ` +
+          `(${focusableCount} focusable elements — more than one full lap)`
+      );
+    }
+  }
 
   await page.keyboard.press("Escape");
   await page.waitForTimeout(700);
@@ -538,6 +641,66 @@ for (const vp of VIEWPORTS) {
     await sizeRow.evaluate((el) => {
       el.style.maxWidth = "";
     });
+  }
+
+  await ctx.close();
+}
+
+// ── Regression: wishlist particles must not fire on hydration ───────────
+// wishlist-context.tsx's `has()` reads `false` during hydration and flips to
+// the real localStorage-backed value once `ready` syncs — a plain render on
+// an already-wishlisted PDP therefore sees `wished` go false -> true once,
+// same shape as a genuine click. Seed localStorage with the product already
+// wishlisted *before* the PDP ever mounts (an init script, not a click), so
+// this exercises exactly that hydration transition and nothing else, then
+// confirm no particles rendered.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+
+  const firstHref = await page.locator("a[href^='/product/']").first().getAttribute("href");
+  const slug = (firstHref ?? "").replace("/product/", "");
+  if (!slug) {
+    fail("could not resolve a product slug to test the wishlist-hydration regression");
+  } else {
+    await page.addInitScript(
+      ({ key, slug }) => {
+        localStorage.setItem(
+          key,
+          JSON.stringify([{ slug, name: "x", price: 0, image: "", category: "" }])
+        );
+      },
+      { key: "ldn.wishlist.v1", slug }
+    );
+
+    await page.goto(BASE + `/product/${slug}`, { waitUntil: "networkidle" });
+    // Generous window past hydration + the `ready` flip + the particle
+    // animation's own DURATION.hover (450ms) — if the burst were going to
+    // fire on load, it would have started and finished well inside this.
+    await page.waitForTimeout(1500);
+
+    const heart = page.getByRole("button", { name: /wishlist/i });
+    const pressedOnLoad = await heart.getAttribute("aria-pressed");
+    if (pressedOnLoad !== "true") {
+      fail(
+        `wishlist-hydration regression check: seeded product did not read as ` +
+          `wishlisted on load (aria-pressed=${pressedOnLoad}) — test setup is broken, ` +
+          `not exercising the hydration transition it's meant to`
+      );
+    }
+
+    const particleCount = await page.locator(".wishlist-particle").count();
+    if (particleCount > 0) {
+      fail(
+        `wishlist particles rendered on load for an already-wishlisted product ` +
+          `(${particleCount} particles) — the hydration-driven wished:false->true ` +
+          `transition is not suppressed`
+      );
+    } else {
+      pass("wishlist particles do not render on load for an already-wishlisted product");
+    }
   }
 
   await ctx.close();

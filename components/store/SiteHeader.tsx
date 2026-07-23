@@ -57,9 +57,14 @@ const CONDENSE_SCALE = 0.72;
  * right-hand links collapsing below `md` — so the indicator never renders
  * pointing at a link that isn't actually visible.
  *
- * `x`/`width` are both Motion "positional" keys
- * (node_modules/motion-dom/dist/es/render/utils/keys-position.mjs), so
- * `MotionConfig reducedMotion="user"` already forces them instant under
+ * Only `x` is animated — `width` is set statically (it snaps instantly to
+ * the active link's own width, matching ProductDetail.tsx's thumbnail
+ * indicator, which sets `height` statically and animates only `y`). `width`
+ * is a layout property, not `transform`/`opacity`/`filter`, so springing it
+ * every frame would violate the project's transform-only animation budget
+ * even though Motion is happy to animate it. `x` is a Motion "positional"
+ * key (node_modules/motion-dom/dist/es/render/utils/keys-position.mjs), so
+ * `MotionConfig reducedMotion="user"` already forces it instant under
  * `prefers-reduced-motion: reduce` with no extra work. The explicit
  * `reduceMotion` transition override below is there anyway so the intent is
  * visible in this file rather than resting on that internal Motion detail.
@@ -98,8 +103,9 @@ function NavIndicator({
   return (
     <m.span
       className="pointer-events-none absolute bottom-[-4px] left-0 h-px bg-gold"
+      style={{ width: rect.width }}
       initial={false}
-      animate={{ x: rect.left, width: rect.width }}
+      animate={{ x: rect.left }}
       transition={reduceMotion ? { duration: 0 } : SPRING.snappy}
     />
   );

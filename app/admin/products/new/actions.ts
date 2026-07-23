@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { r2Configured, uploadToR2 } from "@/lib/r2";
 
@@ -85,6 +85,19 @@ export async function createProduct(
     return { error: error.message };
   }
 
+  // lib/queries.ts's getProductBySlug/getRelatedProducts are unstable_cache'd
+  // under the "products" tag with nothing to invalidate it — the landmine:
+  // this create-only flow can't yet make an already-cached product stale
+  // (the product didn't exist before), but the moment an edit/delete flow
+  // reuses this action's shape without also invalidating the tag, that
+  // silently serves stale PDPs for up to `revalidate: 60`s. `updateTag`
+  // (not `revalidateTag`) because this runs inside a Server Action and we
+  // want read-your-own-writes: the admin should see their own new product
+  // immediately, not stale-while-revalidate. (`revalidateTag` in this Next
+  // version also now requires a `profile` argument — see
+  // node_modules/next/dist/docs/01-app/03-api-reference/04-functions/
+  // revalidateTag.md — and is for Route Handlers/webhooks, not this case.)
+  updateTag("products");
   revalidatePath("/admin");
   revalidatePath("/shop");
   return { ok: true };
