@@ -602,6 +602,52 @@ for (const vp of VIEWPORTS) {
   await ctx.close();
 }
 
+// ── Hero ─────────────────────────────────────────────────────────
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+
+  // The wordmark must still read as one accessible string.
+  const h1 = await page.locator("h1").first().innerText();
+  if (h1.replace(/\s/g, "") !== "PANTHÈRE")
+    fail(`hero h1 reads "${h1}", expected PANTHÈRE`);
+  else pass("hero h1 still reads PANTHÈRE");
+
+  const letters = await page.locator("h1 span[data-letter]").count();
+  if (letters !== 8) fail(`hero has ${letters} letter spans, expected 8`);
+  else pass("hero letters are individually masked");
+
+  const cls = await measureCLS(page);
+  if (cls > 0) fail(`home CLS ${cls.toFixed(4)} after hero animation`);
+  else pass("home CLS 0 after hero animation");
+
+  await ctx.close();
+}
+
+// ── Reduced motion ───────────────────────────────────────────────
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+
+  const hidden = await page.evaluate(() =>
+    [...document.querySelectorAll("h1, h2, a[href^='/product/']")].filter(
+      (el) => parseFloat(getComputedStyle(el).opacity) < 0.99
+    ).length
+  );
+  if (hidden > 0) fail(`${hidden} element(s) stuck below full opacity under reduced motion`);
+  else pass("all content fully visible under reduced motion");
+
+  await page.screenshot({ path: join(OUT, "desktop_home_reduced.png"), fullPage: true });
+  await ctx.close();
+}
+
 await browser.close();
 
 if (failures.length) {

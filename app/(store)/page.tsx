@@ -1,7 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { getCategories, getFeaturedProducts, getProducts } from "@/lib/queries";
 import { ProductCard } from "@/components/store/ProductCard";
+import { HeroImage } from "@/components/store/HeroImage";
+import { HeroTitle } from "@/components/store/HeroTitle";
 import { Reveal } from "@/components/motion/Reveal";
 import { STAGGER } from "@/lib/motion";
 
@@ -37,14 +38,7 @@ export default async function HomePage() {
     <>
       {/* HERO */}
       <section className="relative h-[560px] overflow-hidden bg-burgundy-deep sm:h-[660px]">
-        <Image
-          src={HERO}
-          alt="AW26 campaign — panther in fog"
-          fill
-          priority
-          sizes="100vw"
-          className="animate-[ldn-kb_18s_ease-in-out_infinite_alternate] object-cover object-[58%_center] brightness-[0.62] contrast-[1.15] grayscale"
-        />
+        <HeroImage src={HERO} alt="AW26 campaign — panther in fog" />
         <div className="absolute inset-0 bg-burgundy mix-blend-multiply opacity-80" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(61,10,13,0.7)_0%,rgba(61,10,13,0.3)_40%,rgba(61,10,13,0.85)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_20%,rgba(198,160,76,0.15)_0%,rgba(61,10,13,0)_55%)]" />
@@ -53,19 +47,21 @@ export default async function HomePage() {
           NOW STREAMING · AW26 FILM
         </div>
         <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
-          <div className="mb-5 font-mono text-[11px] tracking-[0.36em] text-sand sm:text-[13px]">
-            HEIR TO THE NIGHT
-          </div>
-          <h1 className="font-serif text-[88px] font-medium leading-[0.82] tracking-[-0.02em] text-cream sm:text-[130px] lg:text-[168px]">
-            PANTH<span className="italic text-gold">È</span>RE
-          </h1>
-          <Link
-            href="/shop"
-            transitionTypes={["nav-forward"]}
-            className="mt-8 bg-gold px-8 py-4 font-mono text-xs font-bold uppercase tracking-[0.14em] text-burgundy-deep transition-colors hover:bg-cream"
-          >
-            Shop the collection →
-          </Link>
+          <Reveal delay={250}>
+            <div className="mb-5 font-mono text-[11px] tracking-[0.36em] text-sand sm:text-[13px]">
+              HEIR TO THE NIGHT
+            </div>
+          </Reveal>
+          <HeroTitle />
+          <Reveal delay={400}>
+            <Link
+              href="/shop"
+              transitionTypes={["nav-forward"]}
+              className="mt-8 inline-block bg-gold px-8 py-4 font-mono text-xs font-bold uppercase tracking-[0.14em] text-burgundy-deep transition-colors hover:bg-cream"
+            >
+              Shop the collection →
+            </Link>
+          </Reveal>
         </div>
       </section>
 

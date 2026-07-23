@@ -204,6 +204,14 @@ input::placeholder {
     opacity: 0.75;
   }
 }
+@keyframes ldn-letter-rise {
+  from {
+    transform: translateY(110%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
 
 /* ── Motion system ────────────────────────────────────────────────
    Mirrors lib/motion.ts. Keep the two in sync. */
