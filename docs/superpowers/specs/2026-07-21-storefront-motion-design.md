@@ -14,7 +14,7 @@ Hybrid. Two systems with a hard boundary between them:
 | Concern | Owner | Cost |
 |---|---|---|
 | Cross-page: shared-element morph, directional routes, Suspense reveals | React `<ViewTransition>` (native, Next 16 `experimental.viewTransition`) | 0 kb |
-| In-page interaction: drawers, hover springs, gesture, counters, layout swaps | `motion` behind `LazyMotion` + `m` components | ~17 kb gzip |
+| In-page interaction: drawers, hover springs, gesture, counters, layout swaps | `motion` behind `LazyMotion` + `m` components | ~27 kb gzip measured (see §5) |
 
 Rejected: native-only (no real springs, no interruptible animation on interactive surfaces); motion-library-only (`layoutId` across routes forces client components at every animated boundary, fighting the existing RSC data fetching in `lib/queries`).
 
@@ -226,7 +226,9 @@ Category strip tiles, "Just dropped" cards, and the statement section wrap in `R
 ## 5. Performance budget
 
 - Animate `transform`, `opacity`, and `filter` only. No animated `width`, `height`, `top`, `left`, or `margin` anywhere in this work.
-- Added JS ≤ 20 kb gzip total, measured against the current build output.
+- Added JS ≤ 35 kb gzip per route, measured against the pre-motion baseline (commit 3352e77) by chunk attribution: summing each route's unique first-load JS chunks via .next/server/app/**/page_client-reference-manifest.js, gzipped. Turbopack's build table prints route-type markers without numeric sizes, so it cannot be used for this.
+  Measured actuals: / +33.56 kb, /shop +26.76 kb, /product/[slug] +27.40 kb.
+  Revised 2026-07-23 from an original ≤ 20 kb. That figure was an estimate made before Motion's runtime was measured; ~26.5 kb of the total is Motion core, which is eager because MotionProvider sits in the root layout, and is not reducible without dropping library motion entirely.
 - CLS stays 0. `Reveal` reserves final space; the drawer is `position: fixed`; particles are absolutely positioned.
 - `will-change` is applied on interaction start and removed on end, never left standing.
 - Hero image keeps `priority`. No new above-fold network requests.
